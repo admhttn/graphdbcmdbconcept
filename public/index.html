@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fancy CMDB Concept</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔗 Fancy CMDB Concept</h1>
+            <p>Modern Configuration Management Database with Graph-based Correlation</p>
+        </header>
+
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="topology">Topology</button>
+            <button class="tab-btn" data-tab="events">Events</button>
+            <button class="tab-btn" data-tab="correlation">Correlation</button>
+            <button class="tab-btn" data-tab="demo">Demo</button>
+        </nav>
+
+        <main>
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Configuration Items</h3>
+                        <div class="stat-value" id="ci-count">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Active Events</h3>
+                        <div class="stat-value" id="event-count">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Critical Issues</h3>
+                        <div class="stat-value critical" id="critical-count">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Business Services</h3>
+                        <div class="stat-value" id="service-count">-</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Recent Events</h2>
+                    <div id="recent-events" class="events-list">
+                        <div class="loading">Loading events...</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>System Health</h2>
+                    <div id="health-chart"></div>
+                </div>
+            </div>
+
+            <!-- Topology Tab -->
+            <div id="topology" class="tab-content">
+                <div class="toolbar">
+                    <button id="refresh-topology">Refresh</button>
+                    <select id="topology-filter">
+                        <option value="">All Components</option>
+                        <option value="Server">Servers</option>
+                        <option value="Application">Applications</option>
+                        <option value="Database">Databases</option>
+                        <option value="NetworkSwitch">Network</option>
+                    </select>
+                    <button id="reset-zoom">Reset Zoom</button>
+                </div>
+                <div id="topology-viz" class="visualization">
+                    <div class="loading">Loading topology...</div>
+                </div>
+            </div>
+
+            <!-- Events Tab -->
+            <div id="events" class="tab-content">
+                <div class="toolbar">
+                    <select id="severity-filter">
+                        <option value="">All Severities</option>
+                        <option value="CRITICAL">Critical</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                        <option value="INFO">Info</option>
+                    </select>
+                    <button id="simulate-event">Simulate Event</button>
+                    <button id="refresh-events">Refresh</button>
+                </div>
+                <div id="events-list" class="events-list">
+                    <div class="loading">Loading events...</div>
+                </div>
+            </div>
+
+            <!-- Correlation Tab -->
+            <div id="correlation" class="tab-content">
+                <div class="toolbar">
+                    <select id="time-window">
+                        <option value="5m">Last 5 minutes</option>
+                        <option value="15m">Last 15 minutes</option>
+                        <option value="1h" selected>Last hour</option>
+                        <option value="6h">Last 6 hours</option>
+                    </select>
+                    <button id="run-correlation">Run Analysis</button>
+                    <button id="run-engine">Run Engine</button>
+                </div>
+
+                <div class="correlation-grid">
+                    <div class="section">
+                        <h3>Event Correlations</h3>
+                        <div id="correlations-list" class="correlations">
+                            <div class="loading">Run correlation analysis...</div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3>Business Impact</h3>
+                        <div id="business-impact" class="business-impact">
+                            <div class="loading">Run correlation analysis...</div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3>Pattern Analysis</h3>
+                        <div id="patterns" class="patterns">
+                            <div class="loading">Loading patterns...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demo Tab -->
+            <div id="demo" class="tab-content">
+                <div class="section">
+                    <h2>Demo Controls</h2>
+                    <div class="demo-controls">
+                        <button id="load-sample-data" class="primary-btn">Load Sample Data</button>
+                        <button id="create-incident">Create Sample Incident</button>
+                        <button id="simulate-cascade">Simulate Cascade Event</button>
+                        <button id="clear-events">Clear All Events</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>About This Demo</h2>
+                    <div class="demo-info">
+                        <p>This concept application demonstrates modern CMDB capabilities:</p>
+                        <ul>
+                            <li><strong>Graph Database:</strong> Neo4j for dynamic relationship modeling</li>
+                            <li><strong>AI Correlation:</strong> Automated event correlation using graph algorithms</li>
+                            <li><strong>Topology Awareness:</strong> Real-time dependency mapping</li>
+                            <li><strong>Business Impact:</strong> Service-centric correlation analysis</li>
+                            <li><strong>Predictive Patterns:</strong> Historical pattern recognition</li>
+                        </ul>
+
+                        <h3>Key Features:</h3>
+                        <ul>
+                            <li>Dynamic CI relationship discovery</li>
+                            <li>Cross-layer event correlation</li>
+                            <li>Root cause analysis automation</li>
+                            <li>Business service impact assessment</li>
+                            <li>Real-time topology visualization</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/topology.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/correlation.js"></script>
+</body>
+</html>
