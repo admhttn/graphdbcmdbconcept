@@ -136,32 +136,146 @@
                 <div class="section">
                     <h2>Demo Controls</h2>
                     <div class="demo-controls">
-                        <button id="load-sample-data" class="primary-btn">Load Sample Data</button>
+                        <button id="load-sample-data" class="primary-btn">Load Enhanced Sample Data</button>
                         <button id="create-incident">Create Sample Incident</button>
                         <button id="simulate-cascade">Simulate Cascade Event</button>
                         <button id="clear-events">Clear All Events</button>
                     </div>
                 </div>
 
+                <!-- Graph Database Advantages Demo -->
+                <div class="section">
+                    <h2>🔗 Graph Database Advantages Demo</h2>
+                    <p class="demo-description">
+                        Experience firsthand how graph databases excel at multi-hop dependency analysis compared to traditional SQL approaches.
+                        Select a component below to see real-time impact blast radius calculation with business revenue impact.
+                    </p>
+
+                    <!-- Demo Scenario Selector -->
+                    <div class="demo-scenarios">
+                        <h3>Pre-configured Scenarios</h3>
+                        <div class="scenario-grid" id="scenario-grid">
+                            <div class="loading">Loading demo scenarios...</div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Impact Analysis -->
+                    <div class="impact-analysis-panel">
+                        <h3>Custom Impact Analysis</h3>
+                        <div class="analysis-controls">
+                            <div class="control-group">
+                                <label for="component-selector">Component:</label>
+                                <select id="component-selector">
+                                    <option value="">Select a component...</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="analysis-direction">Direction:</label>
+                                <select id="analysis-direction">
+                                    <option value="downstream">Downstream Impact</option>
+                                    <option value="upstream">Upstream Dependencies</option>
+                                    <option value="both">Both Directions</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="max-depth">Max Depth:</label>
+                                <input type="range" id="max-depth" min="1" max="6" value="4" class="depth-slider">
+                                <span id="depth-value">4</span> hops
+                            </div>
+                            <button id="run-impact-analysis" class="primary-btn">Run Impact Analysis</button>
+                        </div>
+                    </div>
+
+                    <!-- Results Display -->
+                    <div class="impact-results" id="impact-results" style="display: none;">
+                        <h3>Impact Analysis Results</h3>
+
+                        <!-- Summary Cards -->
+                        <div class="impact-summary">
+                            <div class="summary-card">
+                                <h4>Affected Components</h4>
+                                <div class="summary-value" id="affected-count">-</div>
+                            </div>
+                            <div class="summary-card critical">
+                                <h4>Critical Impacts</h4>
+                                <div class="summary-value" id="critical-impacts">-</div>
+                            </div>
+                            <div class="summary-card revenue">
+                                <h4>Revenue at Risk</h4>
+                                <div class="summary-value" id="revenue-at-risk">-</div>
+                            </div>
+                            <div class="summary-card performance">
+                                <h4>Query Time</h4>
+                                <div class="summary-value" id="query-time">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Dependency Chain Visualization -->
+                        <div class="dependency-chains">
+                            <h4>Dependency Impact Chains</h4>
+                            <div id="dependency-list" class="dependency-list">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Graph Advantage Highlight -->
+                        <div class="graph-advantage-highlight">
+                            <h4>🚀 Graph Database Advantage</h4>
+                            <div id="advantage-description" class="advantage-text">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Query Comparison Panel -->
+                    <div class="query-comparison" id="query-comparison" style="display: none;">
+                        <h3>Query Comparison: Cypher vs SQL</h3>
+                        <div class="comparison-panels">
+                            <div class="query-panel cypher-panel">
+                                <h4>Neo4j Cypher Query</h4>
+                                <div class="query-metrics">
+                                    <span class="metric">Lines: <span id="cypher-lines">-</span></span>
+                                    <span class="metric">Complexity: <span id="cypher-complexity">-</span></span>
+                                </div>
+                                <pre id="cypher-query" class="query-code"></pre>
+                            </div>
+                            <div class="query-panel sql-panel">
+                                <h4>SQL Equivalent</h4>
+                                <div class="query-metrics">
+                                    <span class="metric">Lines: <span id="sql-lines">-</span></span>
+                                    <span class="metric">Complexity: <span id="sql-complexity">-</span></span>
+                                </div>
+                                <pre id="sql-query" class="query-code"></pre>
+                            </div>
+                        </div>
+                        <div class="comparison-advantages">
+                            <h4>Practical Advantages</h4>
+                            <div id="advantages-list" class="advantages-grid">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section">
                     <h2>About This Demo</h2>
                     <div class="demo-info">
-                        <p>This concept application demonstrates modern CMDB capabilities:</p>
+                        <p>This concept application demonstrates modern CMDB capabilities with graph database advantages:</p>
                         <ul>
-                            <li><strong>Graph Database:</strong> Neo4j for dynamic relationship modeling</li>
+                            <li><strong>Graph Database:</strong> Neo4j for dynamic relationship modeling and multi-hop traversal</li>
                             <li><strong>AI Correlation:</strong> Automated event correlation using graph algorithms</li>
-                            <li><strong>Topology Awareness:</strong> Real-time dependency mapping</li>
-                            <li><strong>Business Impact:</strong> Service-centric correlation analysis</li>
-                            <li><strong>Predictive Patterns:</strong> Historical pattern recognition</li>
+                            <li><strong>Impact Analysis:</strong> Real-time blast radius calculation with business impact</li>
+                            <li><strong>Performance:</strong> Sub-second analysis of complex 6-hop dependency chains</li>
+                            <li><strong>Business Value:</strong> Revenue impact calculation and risk assessment</li>
                         </ul>
 
-                        <h3>Key Features:</h3>
+                        <h3>Graph Database vs Traditional SQL:</h3>
                         <ul>
-                            <li>Dynamic CI relationship discovery</li>
-                            <li>Cross-layer event correlation</li>
-                            <li>Root cause analysis automation</li>
-                            <li>Business service impact assessment</li>
-                            <li>Real-time topology visualization</li>
+                            <li><strong>Variable-depth traversal:</strong> Simple parameter change vs complex query rewriting</li>
+                            <li><strong>Performance:</strong> Consistent fast execution vs exponential degradation</li>
+                            <li><strong>Maintainability:</strong> Intuitive graph queries vs complex recursive CTEs</li>
+                            <li><strong>Business logic:</strong> Native relationship properties vs junction table complexity</li>
+                            <li><strong>Real-time usage:</strong> Safe for production vs performance impact concerns</li>
                         </ul>
                     </div>
                 </div>
@@ -169,9 +283,34 @@
         </main>
     </div>
 
+    <!-- Debug Logger Terminal -->
+    <div id="debug-logger" class="debug-logger">
+        <div class="debug-header">
+            <div class="debug-title">
+                <span class="debug-icon">📊</span>
+                <span>Debug Console</span>
+            </div>
+            <div class="debug-controls">
+                <button id="clear-logs" class="debug-btn">Clear</button>
+                <button id="toggle-logger" class="debug-btn">Hide</button>
+            </div>
+        </div>
+        <div class="debug-content" id="debug-content">
+            <div class="debug-welcome">
+                <div class="debug-line">
+                    <span class="debug-timestamp">[INIT]</span>
+                    <span class="debug-level info">INFO</span>
+                    <span class="debug-message">Debug console initialized - monitoring CMDB operations</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/debug-logger.js"></script>
     <script src="js/app.js"></script>
     <script src="js/topology.js"></script>
     <script src="js/events.js"></script>
     <script src="js/correlation.js"></script>
+    <script src="js/graph-advantages-demo.js"></script>
 </body>
 </html>

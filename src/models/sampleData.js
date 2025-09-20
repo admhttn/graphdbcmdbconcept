@@ -216,6 +216,215 @@ async function createConfigurationItems() {
       version: '10.0.3',
       criticality: 'MEDIUM',
       status: 'OPERATIONAL'
+    },
+
+    // Customer Segments (for business impact analysis)
+    {
+      id: 'customer-enterprise',
+      name: 'Enterprise Customers',
+      type: 'CustomerSegment',
+      size: 500,
+      revenue_per_hour: 50000,
+      criticality: 'CRITICAL',
+      status: 'ACTIVE'
+    },
+    {
+      id: 'customer-retail',
+      name: 'Retail Customers',
+      type: 'CustomerSegment',
+      size: 10000,
+      revenue_per_hour: 25000,
+      criticality: 'HIGH',
+      status: 'ACTIVE'
+    },
+    {
+      id: 'customer-premium',
+      name: 'Premium Subscribers',
+      type: 'CustomerSegment',
+      size: 2000,
+      revenue_per_hour: 15000,
+      criticality: 'HIGH',
+      status: 'ACTIVE'
+    },
+
+    // Geographic Regions
+    {
+      id: 'region-us-east',
+      name: 'US East Region',
+      type: 'Region',
+      location: 'Virginia, USA',
+      customer_base: 60,
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'region-us-west',
+      name: 'US West Region',
+      type: 'Region',
+      location: 'California, USA',
+      customer_base: 30,
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'region-europe',
+      name: 'Europe Region',
+      type: 'Region',
+      location: 'Ireland',
+      customer_base: 10,
+      criticality: 'MEDIUM',
+      status: 'OPERATIONAL'
+    },
+
+    // Compliance and Security Components
+    {
+      id: 'compliance-gdpr',
+      name: 'GDPR Data Processing Compliance',
+      type: 'ComplianceRequirement',
+      regulation: 'GDPR',
+      scope: 'EU Customer Data',
+      criticality: 'CRITICAL',
+      status: 'ACTIVE'
+    },
+    {
+      id: 'compliance-pci',
+      name: 'PCI DSS Payment Compliance',
+      type: 'ComplianceRequirement',
+      regulation: 'PCI DSS',
+      scope: 'Payment Processing',
+      criticality: 'CRITICAL',
+      status: 'ACTIVE'
+    },
+    {
+      id: 'sec-vault',
+      name: 'HashiCorp Vault',
+      type: 'SecurityService',
+      function: 'Secret Management',
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+
+    // Third-party Services
+    {
+      id: 'ext-payment-stripe',
+      name: 'Stripe Payment Gateway',
+      type: 'ExternalService',
+      provider: 'Stripe',
+      sla: '99.99%',
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ext-email-sendgrid',
+      name: 'SendGrid Email Service',
+      type: 'ExternalService',
+      provider: 'SendGrid',
+      sla: '99.9%',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ext-cdn-cloudflare',
+      name: 'Cloudflare CDN',
+      type: 'ExternalService',
+      provider: 'Cloudflare',
+      sla: '99.99%',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+
+    // Microservices Architecture
+    {
+      id: 'ms-user-auth',
+      name: 'User Authentication Service',
+      type: 'Microservice',
+      technology: 'Node.js',
+      version: '1.3.2',
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ms-payment-processor',
+      name: 'Payment Processing Service',
+      type: 'Microservice',
+      technology: 'Java',
+      version: '2.1.0',
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ms-inventory',
+      name: 'Inventory Management Service',
+      type: 'Microservice',
+      technology: 'Python',
+      version: '1.5.1',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ms-notification',
+      name: 'Notification Service',
+      type: 'Microservice',
+      technology: 'Go',
+      version: '1.2.0',
+      criticality: 'MEDIUM',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'ms-recommendation',
+      name: 'Product Recommendation Service',
+      type: 'Microservice',
+      technology: 'Python',
+      version: '2.0.1',
+      criticality: 'MEDIUM',
+      status: 'OPERATIONAL'
+    },
+
+    // API Gateway and Service Mesh
+    {
+      id: 'gw-api-main',
+      name: 'Main API Gateway',
+      type: 'APIGateway',
+      technology: 'Kong',
+      version: '3.4.0',
+      criticality: 'CRITICAL',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'mesh-istio',
+      name: 'Istio Service Mesh',
+      type: 'ServiceMesh',
+      version: '1.19.0',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+
+    // Additional Infrastructure for Complex Chains
+    {
+      id: 'cache-redis-cluster',
+      name: 'Redis Cache Cluster',
+      type: 'CacheCluster',
+      nodes: 6,
+      memory: '64GB',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'queue-rabbitmq',
+      name: 'RabbitMQ Message Queue',
+      type: 'MessageQueue',
+      version: '3.12.0',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
+    },
+    {
+      id: 'backup-s3-primary',
+      name: 'AWS S3 Primary Backup',
+      type: 'BackupStorage',
+      provider: 'AWS',
+      capacity: '50TB',
+      criticality: 'HIGH',
+      status: 'OPERATIONAL'
     }
   ];
 
@@ -290,7 +499,87 @@ async function createRelationships() {
     { from: 'mon-prometheus', to: 'srv-app-02', type: 'MONITORS' },
     { from: 'mon-prometheus', to: 'srv-db-01', type: 'MONITORS' },
     { from: 'mon-prometheus', to: 'srv-db-02', type: 'MONITORS' },
-    { from: 'mon-grafana', to: 'mon-prometheus', type: 'DEPENDS_ON' }
+    { from: 'mon-grafana', to: 'mon-prometheus', type: 'DEPENDS_ON' },
+
+    // Regional hosting relationships
+    { from: 'dc-nyc-01', to: 'region-us-east', type: 'LOCATED_IN' },
+    { from: 'region-us-east', to: 'customer-enterprise', type: 'SERVES' },
+    { from: 'region-us-east', to: 'customer-retail', type: 'SERVES' },
+    { from: 'region-us-west', to: 'customer-premium', type: 'SERVES' },
+    { from: 'region-europe', to: 'customer-retail', type: 'SERVES' },
+
+    // API Gateway and Service Mesh relationships (critical layer)
+    { from: 'gw-api-main', to: 'lb-prod-01', type: 'ROUTES_TO' },
+    { from: 'gw-api-main', to: 'ext-cdn-cloudflare', type: 'INTEGRATES_WITH' },
+    { from: 'mesh-istio', to: 'srv-app-01', type: 'MANAGES' },
+    { from: 'mesh-istio', to: 'srv-app-02', type: 'MANAGES' },
+
+    // Microservices hosting and dependencies
+    { from: 'ms-user-auth', to: 'srv-app-01', type: 'RUNS_ON' },
+    { from: 'ms-payment-processor', to: 'srv-app-01', type: 'RUNS_ON' },
+    { from: 'ms-inventory', to: 'srv-app-02', type: 'RUNS_ON' },
+    { from: 'ms-notification', to: 'srv-web-01', type: 'RUNS_ON' },
+    { from: 'ms-recommendation', to: 'srv-web-02', type: 'RUNS_ON' },
+
+    // Microservices inter-dependencies (creates complex chains)
+    { from: 'ms-payment-processor', to: 'ms-user-auth', type: 'DEPENDS_ON' },
+    { from: 'ms-payment-processor', to: 'ms-inventory', type: 'DEPENDS_ON' },
+    { from: 'ms-inventory', to: 'ms-user-auth', type: 'DEPENDS_ON' },
+    { from: 'ms-recommendation', to: 'ms-user-auth', type: 'DEPENDS_ON' },
+    { from: 'ms-recommendation', to: 'ms-inventory', type: 'DEPENDS_ON' },
+    { from: 'ms-notification', to: 'queue-rabbitmq', type: 'DEPENDS_ON' },
+
+    // External service integrations
+    { from: 'ms-payment-processor', to: 'ext-payment-stripe', type: 'INTEGRATES_WITH' },
+    { from: 'ms-notification', to: 'ext-email-sendgrid', type: 'INTEGRATES_WITH' },
+    { from: 'gw-api-main', to: 'ext-cdn-cloudflare', type: 'USES' },
+
+    // Cache and queue dependencies
+    { from: 'cache-redis-cluster', to: 'srv-app-01', type: 'RUNS_ON' },
+    { from: 'cache-redis-cluster', to: 'srv-app-02', type: 'RUNS_ON' },
+    { from: 'queue-rabbitmq', to: 'srv-app-02', type: 'RUNS_ON' },
+    { from: 'ms-user-auth', to: 'cache-redis-cluster', type: 'DEPENDS_ON' },
+    { from: 'ms-inventory', to: 'cache-redis-cluster', type: 'DEPENDS_ON' },
+    { from: 'app-ecommerce', to: 'cache-redis-cluster', type: 'DEPENDS_ON' },
+
+    // Security and compliance relationships
+    { from: 'sec-vault', to: 'srv-app-01', type: 'RUNS_ON' },
+    { from: 'ms-user-auth', to: 'sec-vault', type: 'DEPENDS_ON' },
+    { from: 'ms-payment-processor', to: 'sec-vault', type: 'DEPENDS_ON' },
+    { from: 'app-ecommerce', to: 'sec-vault', type: 'DEPENDS_ON' },
+
+    // Compliance requirements affecting multiple components
+    { from: 'ms-payment-processor', to: 'compliance-pci', type: 'MUST_COMPLY_WITH' },
+    { from: 'ext-payment-stripe', to: 'compliance-pci', type: 'MUST_COMPLY_WITH' },
+    { from: 'db-ecommerce-prod', to: 'compliance-pci', type: 'MUST_COMPLY_WITH' },
+    { from: 'ms-user-auth', to: 'compliance-gdpr', type: 'MUST_COMPLY_WITH' },
+    { from: 'db-crm-prod', to: 'compliance-gdpr', type: 'MUST_COMPLY_WITH' },
+    { from: 'region-europe', to: 'compliance-gdpr', type: 'MUST_COMPLY_WITH' },
+
+    // Backup relationships
+    { from: 'backup-s3-primary', to: 'db-ecommerce-prod', type: 'BACKS_UP' },
+    { from: 'backup-s3-primary', to: 'db-crm-prod', type: 'BACKS_UP' },
+    { from: 'backup-s3-primary', to: 'db-analytics-prod', type: 'BACKS_UP' },
+
+    // Business service routing through API gateway (creates 6-hop chains)
+    { from: 'svc-ecommerce', to: 'gw-api-main', type: 'ACCESSIBLE_VIA' },
+    { from: 'svc-customer-mgmt', to: 'gw-api-main', type: 'ACCESSIBLE_VIA' },
+    { from: 'svc-analytics', to: 'gw-api-main', type: 'ACCESSIBLE_VIA' },
+
+    // Enhanced application-microservice relationships
+    { from: 'app-ecommerce', to: 'ms-user-auth', type: 'DEPENDS_ON' },
+    { from: 'app-ecommerce', to: 'ms-payment-processor', type: 'DEPENDS_ON' },
+    { from: 'app-ecommerce', to: 'ms-inventory', type: 'DEPENDS_ON' },
+    { from: 'app-ecommerce', to: 'ms-recommendation', type: 'DEPENDS_ON' },
+    { from: 'app-crm', to: 'ms-user-auth', type: 'DEPENDS_ON' },
+    { from: 'app-crm', to: 'ms-notification', type: 'DEPENDS_ON' },
+
+    // Service mesh management of microservices
+    { from: 'mesh-istio', to: 'ms-user-auth', type: 'ORCHESTRATES' },
+    { from: 'mesh-istio', to: 'ms-payment-processor', type: 'ORCHESTRATES' },
+    { from: 'mesh-istio', to: 'ms-inventory', type: 'ORCHESTRATES' },
+    { from: 'mesh-istio', to: 'ms-notification', type: 'ORCHESTRATES' },
+    { from: 'mesh-istio', to: 'ms-recommendation', type: 'ORCHESTRATES' }
   ];
 
   for (const rel of relationships) {
@@ -344,15 +633,38 @@ async function createBusinessServices() {
     await runWriteQuery(cypher, { serviceData: service });
   }
 
-  // Link services to supporting CIs
+  // Link services to supporting CIs and customer segments
   const serviceSupport = [
+    // E-commerce service dependencies
     { service: 'svc-ecommerce', ci: 'app-ecommerce' },
     { service: 'svc-ecommerce', ci: 'db-ecommerce-prod' },
     { service: 'svc-ecommerce', ci: 'lb-prod-01' },
+    { service: 'svc-ecommerce', ci: 'gw-api-main' },
+    { service: 'svc-ecommerce', ci: 'ms-payment-processor' },
+    { service: 'svc-ecommerce', ci: 'ms-inventory' },
+    { service: 'svc-ecommerce', ci: 'ms-user-auth' },
+
+    // Customer management service dependencies
     { service: 'svc-customer-mgmt', ci: 'app-crm' },
     { service: 'svc-customer-mgmt', ci: 'db-crm-prod' },
+    { service: 'svc-customer-mgmt', ci: 'ms-user-auth' },
+    { service: 'svc-customer-mgmt', ci: 'ms-notification' },
+
+    // Analytics service dependencies
     { service: 'svc-analytics', ci: 'app-analytics' },
-    { service: 'svc-analytics', ci: 'db-analytics-prod' }
+    { service: 'svc-analytics', ci: 'db-analytics-prod' },
+    { service: 'svc-analytics', ci: 'ms-recommendation' }
+  ];
+
+  // Link business services to customer segments (for revenue impact)
+  const customerServiceLinks = [
+    { customer: 'customer-enterprise', service: 'svc-ecommerce' },
+    { customer: 'customer-enterprise', service: 'svc-customer-mgmt' },
+    { customer: 'customer-enterprise', service: 'svc-analytics' },
+    { customer: 'customer-retail', service: 'svc-ecommerce' },
+    { customer: 'customer-retail', service: 'svc-customer-mgmt' },
+    { customer: 'customer-premium', service: 'svc-ecommerce' },
+    { customer: 'customer-premium', service: 'svc-analytics' }
   ];
 
   for (const support of serviceSupport) {
@@ -364,7 +676,17 @@ async function createBusinessServices() {
     await runWriteQuery(cypher, { ciId: support.ci, serviceId: support.service });
   }
 
-  console.log(`Created ${services.length} business services`);
+  // Create customer service relationships for revenue impact analysis
+  for (const link of customerServiceLinks) {
+    const cypher = `
+      MATCH (customer:ConfigurationItem {id: $customerId})
+      MATCH (service:Service {id: $serviceId})
+      CREATE (customer)-[:USES]->(service)
+    `;
+    await runWriteQuery(cypher, { customerId: link.customer, serviceId: link.service });
+  }
+
+  console.log(`Created ${services.length} business services with ${customerServiceLinks.length} customer links`);
 }
 
 async function createSampleEvents() {
