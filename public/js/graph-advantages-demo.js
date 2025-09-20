@@ -45,11 +45,14 @@ class GraphAdvantagesDemo {
 
     async loadDemoScenarios() {
         try {
+            window.logInfo('Loading demo scenarios');
             const response = await fetch('/api/demo/graph-advantage-examples');
             const data = await response.json();
             this.demoScenarios = data.demoScenarios;
+            window.logSuccess(`Loaded ${this.demoScenarios.length} demo scenarios`, { scenarios: this.demoScenarios });
             this.renderDemoScenarios();
         } catch (error) {
+            window.logError('Failed to load demo scenarios', { error: error.message });
             console.error('Error loading demo scenarios:', error);
             this.showError('Failed to load demo scenarios');
         }
@@ -57,10 +60,13 @@ class GraphAdvantagesDemo {
 
     async loadComponentList() {
         try {
+            window.logInfo('Loading component list');
             const response = await fetch('/api/cmdb/items');
             const components = await response.json();
+            window.logSuccess(`Loaded ${components.length} components`, { components: components.slice(0, 5) });
             this.renderComponentSelector(components);
         } catch (error) {
+            window.logError('Failed to load component list', { error: error.message });
             console.error('Error loading components:', error);
             this.showError('Failed to load component list');
         }
@@ -165,7 +171,15 @@ class GraphAdvantagesDemo {
         const direction = document.getElementById('analysis-direction').value;
         const maxDepth = document.getElementById('max-depth').value;
 
+        window.logInfo('Starting impact analysis', {
+            componentId,
+            direction,
+            maxDepth,
+            scenario: scenario?.title || 'Custom Analysis'
+        });
+
         if (!componentId) {
+            window.logWarning('No component selected for analysis');
             this.showError('Please select a component first');
             return;
         }
@@ -174,16 +188,40 @@ class GraphAdvantagesDemo {
 
         try {
             // Run impact analysis
-            const analysisResponse = await fetch(
-                `/api/demo/impact-analysis/${componentId}?maxDepth=${maxDepth}&direction=${direction}`
-            );
+            window.logInfo(`Fetching impact analysis for component: ${componentId}`);
+            const analysisUrl = `/api/demo/impact-analysis/${componentId}?maxDepth=${maxDepth}&direction=${direction}`;
+            const analysisResponse = await fetch(analysisUrl);
+
+            window.logDebug('Impact analysis response received', {
+                status: analysisResponse.status,
+                statusText: analysisResponse.statusText,
+                url: analysisUrl
+            });
+
+            if (!analysisResponse.ok) {
+                throw new Error(`HTTP ${analysisResponse.status}: ${analysisResponse.statusText}`);
+            }
+
             const analysisData = await analysisResponse.json();
+            window.logSuccess('Impact analysis data parsed', {
+                affectedComponents: analysisData.impactSummary?.totalAffectedComponents,
+                executionTime: analysisData.impactSummary?.executionTimeMs
+            });
 
             // Get query comparison
-            const comparisonResponse = await fetch(
-                `/api/demo/query-comparison/${componentId}?maxDepth=${maxDepth}`
-            );
+            window.logInfo('Fetching query comparison data');
+            const comparisonUrl = `/api/demo/query-comparison/${componentId}?maxDepth=${maxDepth}`;
+            const comparisonResponse = await fetch(comparisonUrl);
+
+            if (!comparisonResponse.ok) {
+                throw new Error(`Query comparison failed: HTTP ${comparisonResponse.status}`);
+            }
+
             const comparisonData = await comparisonResponse.json();
+            window.logSuccess('Query comparison data received', {
+                cypherLines: comparisonData.cypher?.linesOfCode,
+                sqlLines: comparisonData.sql?.linesOfCode
+            });
 
             // Store current analysis data
             this.currentAnalysis = {
@@ -191,6 +229,8 @@ class GraphAdvantagesDemo {
                 comparison: comparisonData,
                 scenario: scenario
             };
+
+            window.logInfo('Rendering analysis results');
 
             // Render results
             this.renderAnalysisResults();
@@ -203,9 +243,18 @@ class GraphAdvantagesDemo {
             // Scroll to results
             document.getElementById('impact-results').scrollIntoView({ behavior: 'smooth' });
 
+            window.logSuccess('Impact analysis completed successfully');
+
         } catch (error) {
+            window.logError('Impact analysis failed', {
+                error: error.message,
+                stack: error.stack,
+                componentId,
+                direction,
+                maxDepth
+            });
             console.error('Error running impact analysis:', error);
-            this.showError('Failed to run impact analysis');
+            this.showError('Failed to run impact analysis: ' + error.message);
         }
     }
 

@@ -5,7 +5,13 @@ class CorrelationAnalysis {
     }
 
     init() {
+        if (window.logInfo) {
+            window.logInfo('Correlation analysis module initializing');
+        }
         this.bindEvents();
+        if (window.logSuccess) {
+            window.logSuccess('Correlation analysis module initialized');
+        }
     }
 
     bindEvents() {
@@ -22,6 +28,10 @@ class CorrelationAnalysis {
         try {
             const timeWindow = document.getElementById('time-window')?.value || '1h';
 
+            if (window.logInfo) {
+                window.logInfo(`Starting correlation analysis with time window: ${timeWindow}`);
+            }
+
             // Show loading state
             document.getElementById('correlations-list').innerHTML = '<div class="loading">Analyzing correlations...</div>';
             document.getElementById('business-impact').innerHTML = '<div class="loading">Analyzing business impact...</div>';
@@ -35,10 +45,17 @@ class CorrelationAnalysis {
             const correlations = await correlationsResponse.json();
             const impacts = await impactResponse.json();
 
+            if (window.logSuccess) {
+                window.logSuccess(`Correlation analysis completed: ${correlations.length} correlations, ${impacts.length} impacts`);
+            }
+
             this.displayCorrelations(correlations);
             this.displayBusinessImpact(impacts);
 
         } catch (error) {
+            if (window.logError) {
+                window.logError('Correlation analysis failed', { error: error.message });
+            }
             console.error('Error running correlation analysis:', error);
             this.showError('Failed to run correlation analysis');
         }
@@ -46,6 +63,10 @@ class CorrelationAnalysis {
 
     async runCorrelationEngine() {
         try {
+            if (window.logInfo) {
+                window.logInfo('Starting correlation engine');
+            }
+
             document.getElementById('correlations-list').innerHTML = '<div class="loading">Running correlation engine...</div>';
 
             const response = await fetch('/api/correlation/engine/run', {
@@ -54,6 +75,10 @@ class CorrelationAnalysis {
             });
 
             const result = await response.json();
+
+            if (window.logSuccess) {
+                window.logSuccess(`Correlation engine completed: ${result.processedEvents} events processed, ${result.results.length} results`);
+            }
 
             // Show engine results
             const engineResults = `
@@ -79,6 +104,9 @@ class CorrelationAnalysis {
             }
 
         } catch (error) {
+            if (window.logError) {
+                window.logError('Correlation engine failed', { error: error.message });
+            }
             console.error('Error running correlation engine:', error);
             this.showError('Failed to run correlation engine');
         }
@@ -158,11 +186,20 @@ class CorrelationAnalysis {
 
     async loadPatterns() {
         try {
+            if (window.logInfo) {
+                window.logInfo('Loading correlation patterns');
+            }
             const response = await fetch('/api/correlation/patterns');
             const patterns = await response.json();
 
+            if (window.logSuccess) {
+                window.logSuccess(`Loaded ${patterns.length} correlation patterns`);
+            }
             this.displayPatterns(patterns);
         } catch (error) {
+            if (window.logError) {
+                window.logError('Failed to load patterns', { error: error.message });
+            }
             console.error('Error loading patterns:', error);
             document.getElementById('patterns').innerHTML = '<div class="loading">Failed to load patterns</div>';
         }

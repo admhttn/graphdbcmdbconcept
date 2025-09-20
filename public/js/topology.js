@@ -11,8 +11,14 @@ class TopologyVisualization {
     }
 
     init() {
+        if (window.logInfo) {
+            window.logInfo('Topology visualization initializing');
+        }
         this.bindEvents();
         this.setupVisualization();
+        if (window.logSuccess) {
+            window.logSuccess('Topology visualization initialized');
+        }
     }
 
     bindEvents() {
@@ -63,6 +69,9 @@ class TopologyVisualization {
 
     async load() {
         try {
+            if (window.logInfo) {
+                window.logInfo('Loading topology data');
+            }
             const response = await fetch('/api/cmdb/topology');
             const data = await response.json();
 
@@ -78,8 +87,14 @@ class TopologyVisualization {
                 type: link.type
             }));
 
+            if (window.logSuccess) {
+                window.logSuccess(`Topology loaded: ${this.nodes.length} nodes, ${this.links.length} links`);
+            }
             this.render();
         } catch (error) {
+            if (window.logError) {
+                window.logError('Error loading topology:', { error: error.message });
+            }
             console.error('Error loading topology:', error);
             document.getElementById('topology-viz').innerHTML =
                 '<div class="loading">Failed to load topology data</div>';
@@ -192,6 +207,10 @@ class TopologyVisualization {
     }
 
     applyFilter(filterType) {
+        if (window.logInfo) {
+            window.logInfo(`Applying topology filter: ${filterType || 'none'}`);
+        }
+
         if (!filterType) {
             // Show all nodes and links
             this.svg.selectAll('.node').style('opacity', 1);

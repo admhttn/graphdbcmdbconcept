@@ -1,8 +1,10 @@
 const express = require('express');
+const neo4j = require('neo4j-driver');
 const { createSampleCMDB } = require('../models/sampleData');
 const { runReadQuery } = require('../services/neo4j');
 
 const router = express.Router();
+
 
 // Load sample data
 router.post('/sample-data', async (req, res) => {
@@ -90,17 +92,24 @@ router.get('/impact-analysis/:componentId', async (req, res) => {
              END as riskLevel
 
       ORDER BY impactScore DESC, hopDistance ASC
-      LIMIT 50
+      LIMIT $resultLimit
     `;
 
     const startTime = Date.now();
-    const impactResults = await runReadQuery(cypher, { componentId });
+    const impactResults = await runReadQuery(cypher, {
+      componentId,
+      resultLimit: neo4j.int(50)
+    });
     const executionTime = Date.now() - startTime;
 
-    // Calculate total business impact
-    const totalRevenueAtRisk = impactResults.reduce((sum, result) =>
-      sum + (result.hourlyRevenueAtRisk || 0), 0
-    );
+    // Calculate total business impact (handle Neo4j BigInt values)
+    const totalRevenueAtRisk = impactResults.reduce((sum, result) => {
+      const revenue = result.hourlyRevenueAtRisk;
+      if (revenue === null || revenue === undefined) return sum;
+      // Convert Neo4j BigInt to regular number
+      const revenueValue = typeof revenue === 'bigint' ? Number(revenue) : Number(revenue) || 0;
+      return sum + revenueValue;
+    }, 0);
 
     const criticalImpacts = impactResults.filter(r => r.riskLevel === 'CRITICAL_IMPACT').length;
     const highImpacts = impactResults.filter(r => r.riskLevel === 'HIGH_IMPACT').length;

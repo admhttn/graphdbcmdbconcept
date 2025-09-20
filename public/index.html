@@ -283,6 +283,30 @@
         </main>
     </div>
 
+    <!-- Debug Logger Terminal -->
+    <div id="debug-logger" class="debug-logger">
+        <div class="debug-header">
+            <div class="debug-title">
+                <span class="debug-icon">📊</span>
+                <span>Debug Console</span>
+            </div>
+            <div class="debug-controls">
+                <button id="clear-logs" class="debug-btn">Clear</button>
+                <button id="toggle-logger" class="debug-btn">Hide</button>
+            </div>
+        </div>
+        <div class="debug-content" id="debug-content">
+            <div class="debug-welcome">
+                <div class="debug-line">
+                    <span class="debug-timestamp">[INIT]</span>
+                    <span class="debug-level info">INFO</span>
+                    <span class="debug-message">Debug console initialized - monitoring CMDB operations</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/debug-logger.js"></script>
     <script src="js/app.js"></script>
     <script src="js/topology.js"></script>
     <script src="js/events.js"></script>

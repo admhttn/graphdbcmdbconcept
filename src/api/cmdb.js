@@ -1,5 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const neo4j = require('neo4j-driver');
 const { runReadQuery, runWriteQuery, initializeDatabase } = require('../services/neo4j');
 
 const router = express.Router();
@@ -21,7 +22,7 @@ router.get('/items', async (req, res) => {
 
     const { type, limit = 50 } = req.query;
     let cypher = 'MATCH (ci:ConfigurationItem)';
-    let params = { limit: Math.floor(parseInt(limit, 10)) || 50 };
+    let params = { limit: neo4j.int(Math.floor(parseInt(limit, 10)) || 50) };
 
     if (type) {
       cypher += ' WHERE ci.type = $type';

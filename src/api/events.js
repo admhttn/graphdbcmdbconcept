@@ -1,5 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
+const neo4j = require('neo4j-driver');
 const { runReadQuery, runWriteQuery } = require('../services/neo4j');
 
 const router = express.Router();
@@ -9,7 +10,7 @@ router.get('/', async (req, res) => {
   try {
     const { severity, limit = 100, since } = req.query;
     let cypher = 'MATCH (e:Event)';
-    let params = { limit: Math.floor(parseInt(limit, 10)) || 100 };
+    let params = { limit: neo4j.int(Math.floor(parseInt(limit, 10)) || 100) };
 
     const conditions = [];
     if (severity) {

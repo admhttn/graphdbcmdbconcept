@@ -6,9 +6,18 @@ class CMDBApp {
     }
 
     init() {
+        // Wait for debug logger to be available
+        if (window.logInfo) {
+            window.logInfo('CMDB Application initializing');
+        }
+
         this.bindEvents();
         this.loadOverview();
         this.startAutoRefresh();
+
+        if (window.logSuccess) {
+            window.logSuccess('CMDB Application initialized successfully');
+        }
     }
 
     bindEvents() {
