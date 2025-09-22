@@ -1,5 +1,6 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const uuidv4 = () => crypto.randomUUID();
 const neo4j = require('neo4j-driver');
 const { runReadQuery, runWriteQuery } = require('../services/neo4j');
 
@@ -288,6 +289,22 @@ router.post('/simulate', async (req, res) => {
   } catch (error) {
     console.error('Error simulating event:', error);
     res.status(500).json({ error: 'Failed to simulate event' });
+  }
+});
+
+// Clear all events (for demo purposes)
+router.delete('/clear', async (req, res) => {
+  try {
+    const cypher = 'MATCH (e:Event) DETACH DELETE e';
+    await runWriteQuery(cypher);
+
+    res.json({
+      message: 'All events cleared successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error clearing events:', error);
+    res.status(500).json({ error: 'Failed to clear events' });
   }
 });
 

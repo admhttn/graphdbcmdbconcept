@@ -1,5 +1,6 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const uuidv4 = () => crypto.randomUUID();
 const neo4j = require('neo4j-driver');
 const { runReadQuery, runWriteQuery, initializeDatabase } = require('../services/neo4j');
 

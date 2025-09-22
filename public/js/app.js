@@ -28,11 +28,7 @@ class CMDBApp {
             });
         });
 
-        // Demo controls
-        document.getElementById('load-sample-data')?.addEventListener('click', () => {
-            this.loadSampleData();
-        });
-
+        // Event simulation controls (consolidated in Events tab)
         document.getElementById('create-incident')?.addEventListener('click', () => {
             this.createSampleIncident();
         });
@@ -40,6 +36,8 @@ class CMDBApp {
         document.getElementById('simulate-cascade')?.addEventListener('click', () => {
             this.simulateCascadeEvent();
         });
+
+        // Demo controls
 
         document.getElementById('clear-events')?.addEventListener('click', () => {
             this.clearEvents();
@@ -86,6 +84,12 @@ class CMDBApp {
             case 'correlation':
                 if (window.CorrelationAnalysis) {
                     window.CorrelationAnalysis.loadPatterns();
+                }
+                break;
+            case 'data-generation':
+                // Initialize data generation manager if not already done
+                if (!window.dataGenerationManager && window.DataGenerationManager) {
+                    window.dataGenerationManager = new window.DataGenerationManager();
                 }
                 break;
         }
@@ -198,26 +202,6 @@ class CMDBApp {
         }
     }
 
-    async loadSampleData() {
-        try {
-            this.showNotification('Loading sample data...', 'info');
-
-            const response = await fetch('/api/demo/sample-data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (response.ok) {
-                this.showNotification('Sample data loaded successfully!', 'success');
-                this.loadOverview();
-            } else {
-                throw new Error('Failed to load sample data');
-            }
-        } catch (error) {
-            console.error('Error loading sample data:', error);
-            this.showError('Failed to load sample data');
-        }
-    }
 
     async createSampleIncident() {
         try {
@@ -305,8 +289,37 @@ class CMDBApp {
         }
 
         try {
-            // This would need to be implemented in the backend
-            this.showNotification('Event clearing not implemented in demo', 'info');
+            if (window.logInfo) {
+                window.logInfo('Clearing all events');
+            }
+
+            const response = await fetch('/api/events/clear', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                this.showNotification('All events cleared successfully', 'success');
+
+                // Refresh events list
+                this.loadEvents();
+
+                // Reset correlation displays if they exist
+                const correlationsList = document.getElementById('correlations-list');
+                if (correlationsList) {
+                    correlationsList.innerHTML = '<div class="loading">Run correlation analysis...</div>';
+                }
+
+                const businessImpact = document.getElementById('business-impact');
+                if (businessImpact) {
+                    businessImpact.innerHTML = '<div class="loading">Run correlation analysis...</div>';
+                }
+
+                if (window.logSuccess) {
+                    window.logSuccess('All events cleared successfully');
+                }
+            } else {
+                throw new Error('Failed to clear events');
+            }
         } catch (error) {
             console.error('Error clearing events:', error);
             this.showError('Failed to clear events');

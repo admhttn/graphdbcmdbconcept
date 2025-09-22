@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
+const uuidv4 = () => crypto.randomUUID();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -147,79 +148,475 @@ app.post('/api/demo/sample-data', (req, res) => {
             totalEvents: demoData.events.length });
 });
 
-// Correlation API (simplified demo)
-app.get('/api/correlation/analyze', (req, res) => {
-  // Simple correlation demo - find events affecting related CIs
-  const correlations = [];
+// Enterprise data demo (in-memory simulation)
+app.post('/api/demo/enterprise-data', (req, res) => {
+  // Generate enterprise-scale demo data
+  console.log('🏢 Generating enterprise-scale demo data...');
 
+  // Clear existing data
+  demoData.configurationItems = [];
+  demoData.events = [];
+  demoData.relationships = [];
+
+  // Generate regions
+  const regions = [
+    { id: 'us-east-1', name: 'US East', type: 'Region', status: 'OPERATIONAL' },
+    { id: 'us-west-1', name: 'US West', type: 'Region', status: 'OPERATIONAL' },
+    { id: 'eu-west-1', name: 'Europe', type: 'Region', status: 'OPERATIONAL' }
+  ];
+
+  // Generate datacenters
+  const datacenters = [];
+  regions.forEach((region, regionIdx) => {
+    for (let i = 1; i <= 3; i++) {
+      const dc = {
+        id: `dc-${region.id}-${i.toString().padStart(2, '0')}`,
+        name: `${region.name} Datacenter ${i}`,
+        type: 'DataCenter',
+        status: 'OPERATIONAL'
+      };
+      datacenters.push(dc);
+      demoData.relationships.push({ from: dc.id, to: region.id, type: 'LOCATED_IN' });
+    }
+  });
+
+  // Generate servers (200 total)
+  const servers = [];
+  datacenters.forEach((dc, dcIdx) => {
+    for (let i = 1; i <= 25; i++) {
+      const server = {
+        id: `srv-${dc.id}-${i.toString().padStart(3, '0')}`,
+        name: `Server ${i} - ${dc.name}`,
+        type: 'Server',
+        serverType: ['Web', 'App', 'DB', 'Cache'][i % 4],
+        status: Math.random() > 0.05 ? 'OPERATIONAL' : 'MAINTENANCE'
+      };
+      servers.push(server);
+      demoData.relationships.push({ from: server.id, to: dc.id, type: 'HOSTED_IN' });
+    }
+  });
+
+  // Generate applications (100 total)
+  const applications = [];
+  const appTypes = ['WebApplication', 'APIService', 'Microservice', 'BackgroundService'];
+  for (let i = 1; i <= 100; i++) {
+    const app = {
+      id: `app-${i.toString().padStart(3, '0')}`,
+      name: `Application ${i}`,
+      type: appTypes[i % appTypes.length],
+      status: 'OPERATIONAL'
+    };
+    applications.push(app);
+
+    // Connect apps to servers
+    const randomServer = servers[Math.floor(Math.random() * servers.length)];
+    demoData.relationships.push({ from: app.id, to: randomServer.id, type: 'RUNS_ON' });
+  }
+
+  // Generate databases (50 total)
+  const databases = [];
+  const dbTypes = ['PostgreSQL', 'MySQL', 'MongoDB', 'Redis'];
+  for (let i = 1; i <= 50; i++) {
+    const db = {
+      id: `db-${i.toString().padStart(3, '0')}`,
+      name: `Database ${i}`,
+      type: 'Database',
+      dbType: dbTypes[i % dbTypes.length],
+      status: 'OPERATIONAL'
+    };
+    databases.push(db);
+
+    // Connect dbs to servers
+    const dbServer = servers.find(s => s.serverType === 'DB') || servers[0];
+    demoData.relationships.push({ from: db.id, to: dbServer.id, type: 'HOSTED_ON' });
+  }
+
+  // Generate business services
+  const businessServices = [
+    'E-Commerce Platform', 'Payment Processing', 'User Authentication',
+    'Customer Portal', 'Analytics Platform', 'Notification Service'
+  ];
+
+  businessServices.forEach((serviceName, idx) => {
+    const service = {
+      id: `biz-svc-${idx.toString().padStart(2, '0')}`,
+      name: serviceName,
+      type: 'BusinessService',
+      status: 'OPERATIONAL'
+    };
+    demoData.configurationItems.push(service);
+
+    // Connect business services to applications
+    const relatedApps = applications.slice(idx * 3, (idx + 1) * 3);
+    relatedApps.forEach(app => {
+      demoData.relationships.push({ from: app.id, to: service.id, type: 'SUPPORTS' });
+    });
+  });
+
+  // Add app dependencies on databases
+  applications.forEach((app, idx) => {
+    if (idx < databases.length) {
+      demoData.relationships.push({ from: app.id, to: databases[idx % databases.length].id, type: 'DEPENDS_ON' });
+    }
+  });
+
+  // Compile all CIs
+  demoData.configurationItems = [...regions, ...datacenters, ...servers, ...applications, ...databases];
+
+  // Generate enterprise-scale events (200 events)
+  const eventTemplates = [
+    { message: 'High CPU utilization detected', severity: 'HIGH', type: 'PERFORMANCE' },
+    { message: 'Memory usage critical', severity: 'HIGH', type: 'PERFORMANCE' },
+    { message: 'API response time degraded', severity: 'MEDIUM', type: 'PERFORMANCE' },
+    { message: 'Database connection pool exhausted', severity: 'CRITICAL', type: 'DATABASE' },
+    { message: 'Application error rate spike', severity: 'HIGH', type: 'APPLICATION' },
+    { message: 'Network latency increased', severity: 'MEDIUM', type: 'NETWORK' },
+    { message: 'Disk space running low', severity: 'MEDIUM', type: 'CAPACITY' },
+    { message: 'Service unavailable', severity: 'CRITICAL', type: 'AVAILABILITY' }
+  ];
+
+  const baseTime = new Date();
+  const timeRange = 6 * 60 * 60 * 1000; // 6 hours
+
+  for (let i = 0; i < 200; i++) {
+    const template = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
+    const randomCI = demoData.configurationItems[Math.floor(Math.random() * demoData.configurationItems.length)];
+    const eventTime = new Date(baseTime.getTime() - Math.random() * timeRange);
+
+    const event = {
+      id: uuidv4(),
+      message: `${template.message} on ${randomCI.name}`,
+      severity: template.severity,
+      eventType: template.type,
+      timestamp: eventTime.toISOString(),
+      status: Math.random() > 0.7 ? 'RESOLVED' : 'OPEN',
+      ciId: randomCI.id
+    };
+
+    demoData.events.push(event);
+  }
+
+  console.log(`✅ Enterprise demo data generated successfully!`);
+  console.log(`   📊 Total CIs: ${demoData.configurationItems.length.toLocaleString()}`);
+  console.log(`   🔗 Total Relationships: ${demoData.relationships.length.toLocaleString()}`);
+  console.log(`   ⚡ Total Events: ${demoData.events.length.toLocaleString()}`);
+
+  res.json({
+    message: 'Enterprise-scale CMDB data generated successfully',
+    totalCIs: demoData.configurationItems.length,
+    totalRelationships: demoData.relationships.length,
+    totalEvents: demoData.events.length,
+    scale: 'enterprise',
+    generatedAt: new Date().toISOString()
+  });
+});
+
+// Advanced Correlation API with multi-hop analysis
+app.get('/api/correlation/analyze', (req, res) => {
+  const { timeWindowHours = 1, maxHops = 3, minConfidence = 0.5 } = req.query;
+
+  console.log(`🔗 Running advanced correlation analysis...`);
+
+  // Multi-hop relationship discovery
+  function findRelationshipPath(fromCI, toCI, maxDepth = 3, visited = new Set()) {
+    if (fromCI === toCI) return [fromCI];
+    if (maxDepth <= 0 || visited.has(fromCI)) return null;
+
+    visited.add(fromCI);
+
+    // Find direct relationships
+    for (const rel of demoData.relationships) {
+      let nextCI = null;
+      if (rel.from === fromCI) nextCI = rel.to;
+      else if (rel.to === fromCI) nextCI = rel.from;
+
+      if (nextCI && !visited.has(nextCI)) {
+        if (nextCI === toCI) {
+          return [fromCI, nextCI];
+        }
+
+        const path = findRelationshipPath(nextCI, toCI, maxDepth - 1, new Set(visited));
+        if (path) {
+          return [fromCI, ...path];
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Calculate correlation confidence based on multiple factors
+  function calculateCorrelationConfidence(event1, event2, relationshipPath) {
+    const timeDiff = Math.abs(new Date(event1.timestamp) - new Date(event2.timestamp));
+    const timeWindowMs = timeWindowHours * 60 * 60 * 1000;
+
+    // Time proximity score (closer in time = higher score)
+    const timeScore = Math.max(0, (timeWindowMs - timeDiff) / timeWindowMs);
+
+    // Relationship distance score (closer relationships = higher score)
+    const distanceScore = Math.max(0, 1 - (relationshipPath.length - 2) * 0.2);
+
+    // Severity correlation score (similar severities = higher score)
+    const severityWeight = {
+      'CRITICAL': 1.0, 'HIGH': 0.8, 'MEDIUM': 0.6, 'LOW': 0.4, 'INFO': 0.2
+    };
+    const sev1 = severityWeight[event1.severity] || 0.5;
+    const sev2 = severityWeight[event2.severity] || 0.5;
+    const severityScore = 1 - Math.abs(sev1 - sev2);
+
+    // Event type correlation (related types = higher score)
+    const typeScore = event1.eventType === event2.eventType ? 0.8 : 0.6;
+
+    // Weighted average
+    return (timeScore * 0.4 + distanceScore * 0.3 + severityScore * 0.2 + typeScore * 0.1);
+  }
+
+  const correlations = [];
+  const processedPairs = new Set();
+
+  // Analyze all event pairs
   demoData.events.forEach(event1 => {
     demoData.events.forEach(event2 => {
-      if (event1.id !== event2.id) {
-        // Check if CIs are related
-        const related = demoData.relationships.find(rel =>
-          (rel.from === event1.ciId && rel.to === event2.ciId) ||
-          (rel.to === event1.ciId && rel.from === event2.ciId)
-        );
+      if (event1.id === event2.id) return;
 
-        if (related) {
-          const timeDiff = Math.abs(new Date(event1.timestamp) - new Date(event2.timestamp));
-          if (timeDiff < 3600000) { // Within 1 hour
-            correlations.push({
-              correlationScore: 0.8,
-              relationshipDistance: 1,
-              event1: {
-                id: event1.id,
-                message: event1.message,
-                severity: event1.severity,
-                timestamp: event1.timestamp,
-                ci: demoData.configurationItems.find(ci => ci.id === event1.ciId)?.name
-              },
-              event2: {
-                id: event2.id,
-                message: event2.message,
-                severity: event2.severity,
-                timestamp: event2.timestamp,
-                ci: demoData.configurationItems.find(ci => ci.id === event2.ciId)?.name
-              }
-            });
+      const pairKey = [event1.id, event2.id].sort().join('-');
+      if (processedPairs.has(pairKey)) return;
+      processedPairs.add(pairKey);
+
+      // Find relationship path between CIs
+      const relationshipPath = findRelationshipPath(event1.ciId, event2.ciId, parseInt(maxHops));
+
+      if (relationshipPath && relationshipPath.length > 1) {
+        const confidence = calculateCorrelationConfidence(event1, event2, relationshipPath);
+
+        if (confidence >= parseFloat(minConfidence)) {
+          const ci1 = demoData.configurationItems.find(ci => ci.id === event1.ciId);
+          const ci2 = demoData.configurationItems.find(ci => ci.id === event2.ciId);
+
+          // Build relationship chain description
+          const relationshipChain = [];
+          for (let i = 0; i < relationshipPath.length - 1; i++) {
+            const rel = demoData.relationships.find(r =>
+              (r.from === relationshipPath[i] && r.to === relationshipPath[i + 1]) ||
+              (r.to === relationshipPath[i] && r.from === relationshipPath[i + 1])
+            );
+            relationshipChain.push(rel?.type || 'RELATED');
           }
+
+          correlations.push({
+            correlationId: uuidv4(),
+            correlationScore: Math.round(confidence * 1000) / 1000,
+            relationshipDistance: relationshipPath.length - 1,
+            relationshipPath: relationshipPath.map(ciId => {
+              const ci = demoData.configurationItems.find(c => c.id === ciId);
+              return { id: ciId, name: ci?.name || 'Unknown', type: ci?.type || 'Unknown' };
+            }),
+            relationshipChain,
+            event1: {
+              id: event1.id,
+              message: event1.message,
+              severity: event1.severity,
+              eventType: event1.eventType,
+              timestamp: event1.timestamp,
+              ci: { id: ci1?.id, name: ci1?.name, type: ci1?.type }
+            },
+            event2: {
+              id: event2.id,
+              message: event2.message,
+              severity: event2.severity,
+              eventType: event2.eventType,
+              timestamp: event2.timestamp,
+              ci: { id: ci2?.id, name: ci2?.name, type: ci2?.type }
+            },
+            temporalProximity: Math.abs(new Date(event1.timestamp) - new Date(event2.timestamp)) / (1000 * 60), // minutes
+            analysisMetadata: {
+              timeWindowHours: parseFloat(timeWindowHours),
+              maxHops: parseInt(maxHops),
+              analysisTimestamp: new Date().toISOString()
+            }
+          });
         }
       }
     });
   });
 
-  res.json(correlations.slice(0, 10)); // Limit results
+  // Sort by correlation score descending
+  correlations.sort((a, b) => b.correlationScore - a.correlationScore);
+
+  console.log(`✅ Found ${correlations.length} correlations`);
+
+  res.json({
+    correlations: correlations.slice(0, 20), // Top 20 correlations
+    summary: {
+      totalCorrelations: correlations.length,
+      highConfidence: correlations.filter(c => c.correlationScore >= 0.8).length,
+      mediumConfidence: correlations.filter(c => c.correlationScore >= 0.6 && c.correlationScore < 0.8).length,
+      lowConfidence: correlations.filter(c => c.correlationScore < 0.6).length,
+      analysisParameters: {
+        timeWindowHours: parseFloat(timeWindowHours),
+        maxHops: parseInt(maxHops),
+        minConfidence: parseFloat(minConfidence)
+      }
+    }
+  });
 });
 
 app.get('/api/correlation/business-impact', (req, res) => {
+  console.log(`💼 Calculating business impact analysis...`);
+
+  // Enhanced business impact calculation with revenue modeling
+  const businessServiceRevenue = {
+    'E-Commerce Platform': { hourlyRevenue: 75000, criticalityMultiplier: 1.5 },
+    'Payment Processing': { hourlyRevenue: 50000, criticalityMultiplier: 2.0 },
+    'User Authentication': { hourlyRevenue: 30000, criticalityMultiplier: 1.8 },
+    'Customer Portal': { hourlyRevenue: 25000, criticalityMultiplier: 1.3 },
+    'Analytics Platform': { hourlyRevenue: 15000, criticalityMultiplier: 1.0 },
+    'Notification Service': { hourlyRevenue: 10000, criticalityMultiplier: 1.2 }
+  };
+
   const impacts = demoData.events.map(event => {
     const ci = demoData.configurationItems.find(c => c.id === event.ciId);
-    let impactScore = 0.5;
 
-    if (event.severity === 'CRITICAL') impactScore = 1.0;
-    else if (event.severity === 'HIGH') impactScore = 0.8;
-    else if (event.severity === 'MEDIUM') impactScore = 0.5;
+    // Base impact scoring
+    let baseImpactScore = 0.3;
+    if (event.severity === 'CRITICAL') baseImpactScore = 1.0;
+    else if (event.severity === 'HIGH') baseImpactScore = 0.8;
+    else if (event.severity === 'MEDIUM') baseImpactScore = 0.5;
+    else if (event.severity === 'LOW') baseImpactScore = 0.3;
+
+    // Find connected business services through relationship analysis
+    const connectedBusinessServices = [];
+
+    // Direct business service impact
+    if (ci?.type === 'BusinessService') {
+      connectedBusinessServices.push(ci);
+    } else {
+      // Find business services that depend on this CI (multi-hop)
+      const findConnectedServices = (startCI, depth = 0, visited = new Set()) => {
+        if (depth > 3 || visited.has(startCI)) return;
+        visited.add(startCI);
+
+        demoData.relationships.forEach(rel => {
+          let connectedCI = null;
+          if (rel.to === startCI) {
+            connectedCI = demoData.configurationItems.find(c => c.id === rel.from);
+          } else if (rel.from === startCI && ['SUPPORTS', 'ENABLES'].includes(rel.type)) {
+            connectedCI = demoData.configurationItems.find(c => c.id === rel.to);
+          }
+
+          if (connectedCI) {
+            if (connectedCI.type === 'BusinessService') {
+              connectedBusinessServices.push(connectedCI);
+            } else {
+              findConnectedServices(connectedCI.id, depth + 1, visited);
+            }
+          }
+        });
+      };
+
+      findConnectedServices(ci?.id);
+    }
+
+    // Calculate revenue impact
+    let totalRevenueAtRisk = 0;
+    let primaryBusinessService = null;
+
+    if (connectedBusinessServices.length > 0) {
+      primaryBusinessService = connectedBusinessServices[0];
+      const serviceConfig = businessServiceRevenue[primaryBusinessService.name] ||
+                          { hourlyRevenue: 20000, criticalityMultiplier: 1.0 };
+
+      totalRevenueAtRisk = serviceConfig.hourlyRevenue *
+                          serviceConfig.criticalityMultiplier *
+                          baseImpactScore;
+    }
+
+    // CI type impact multipliers
+    const ciTypeMultipliers = {
+      'Database': 1.8,
+      'APIService': 1.6,
+      'WebApplication': 1.4,
+      'BusinessService': 2.0,
+      'Server': 1.2,
+      'NetworkSwitch': 1.5,
+      'Microservice': 1.3
+    };
+
+    const typeMultiplier = ciTypeMultipliers[ci?.type] || 1.0;
+    const finalImpactScore = Math.min(1.0, baseImpactScore * typeMultiplier);
+
+    // Customer impact estimation
+    const customerImpact = {
+      affectedCustomers: Math.round(totalRevenueAtRisk / 50), // Estimate based on revenue
+      impactDuration: event.severity === 'CRITICAL' ? '2-4 hours' :
+                     event.severity === 'HIGH' ? '30-120 minutes' : '15-60 minutes',
+      serviceAvailability: Math.round((1 - finalImpactScore) * 100) + '%'
+    };
 
     return {
+      eventId: event.id,
       event: {
         id: event.id,
         message: event.message,
         severity: event.severity,
-        timestamp: event.timestamp
+        eventType: event.eventType,
+        timestamp: event.timestamp,
+        status: event.status
       },
       affectedCI: {
+        id: ci?.id || 'unknown',
         name: ci?.name || 'Unknown',
         type: ci?.type || 'Unknown'
       },
-      businessService: ci?.type === 'Application' ? {
-        name: `${ci.name} Service`,
-        criticality: 'HIGH'
+      primaryBusinessService: primaryBusinessService ? {
+        id: primaryBusinessService.id,
+        name: primaryBusinessService.name,
+        criticality: primaryBusinessService.name.includes('Payment') ||
+                    primaryBusinessService.name.includes('E-Commerce') ? 'CRITICAL' : 'HIGH'
       } : null,
-      businessImpactScore: impactScore
+      businessImpactScore: Math.round(finalImpactScore * 1000) / 1000,
+      revenueImpact: {
+        hourlyRevenueAtRisk: Math.round(totalRevenueAtRisk),
+        estimatedLoss4Hours: Math.round(totalRevenueAtRisk * 4),
+        currency: 'USD'
+      },
+      customerImpact,
+      riskLevel: finalImpactScore >= 0.8 ? 'CRITICAL' :
+                finalImpactScore >= 0.6 ? 'HIGH' :
+                finalImpactScore >= 0.4 ? 'MEDIUM' : 'LOW',
+      recommendations: [
+        finalImpactScore >= 0.8 ? 'Immediate escalation required' :
+        finalImpactScore >= 0.6 ? 'Priority investigation needed' : 'Monitor and assess',
+        connectedBusinessServices.length > 0 ? 'Notify business stakeholders' : 'Technical team assessment',
+        totalRevenueAtRisk > 50000 ? 'Activate emergency response procedures' : 'Standard incident response'
+      ].filter(Boolean),
+      analysisTimestamp: new Date().toISOString()
     };
   });
 
-  res.json(impacts.sort((a, b) => b.businessImpactScore - a.businessImpactScore));
+  // Sort by business impact score and revenue risk
+  impacts.sort((a, b) => {
+    const scoreA = a.businessImpactScore + (a.revenueImpact.hourlyRevenueAtRisk / 100000);
+    const scoreB = b.businessImpactScore + (b.revenueImpact.hourlyRevenueAtRisk / 100000);
+    return scoreB - scoreA;
+  });
+
+  const summary = {
+    totalEvents: impacts.length,
+    criticalImpacts: impacts.filter(i => i.riskLevel === 'CRITICAL').length,
+    highImpacts: impacts.filter(i => i.riskLevel === 'HIGH').length,
+    totalRevenueAtRisk: impacts.reduce((sum, i) => sum + i.revenueImpact.hourlyRevenueAtRisk, 0),
+    mostImpactedServices: [...new Set(impacts
+      .filter(i => i.primaryBusinessService)
+      .map(i => i.primaryBusinessService.name))].slice(0, 5)
+  };
+
+  console.log(`✅ Business impact analysis completed: ${summary.criticalImpacts} critical impacts, $${summary.totalRevenueAtRisk.toLocaleString()}/hour at risk`);
+
+  res.json({
+    impacts: impacts.slice(0, 15), // Top 15 impacts
+    summary
+  });
 });
 
 app.get('/api/correlation/patterns', (req, res) => {
@@ -257,6 +654,259 @@ app.get('/api/correlation/patterns', (req, res) => {
   });
 
   res.json(patterns);
+});
+
+// Scenario-specific endpoints for realistic demonstrations
+app.post('/api/demo/scenario/:scenarioId/events', (req, res) => {
+  const { scenarioId } = req.params;
+  const { eventCount = 5, timeSpanMinutes = 10 } = req.body;
+
+  // Define scenario-specific event templates
+  const scenarioEventTemplates = {
+    'database-cascade-failure': [
+      { ciType: 'Database', severity: 'CRITICAL', message: 'Database connection pool exhausted', eventType: 'DATABASE' },
+      { ciType: 'APIService', severity: 'HIGH', message: 'API response time severely degraded', eventType: 'PERFORMANCE' },
+      { ciType: 'WebApplication', severity: 'HIGH', message: 'Application timeout errors increasing', eventType: 'APPLICATION' },
+      { ciType: 'Server', severity: 'MEDIUM', message: 'Database server CPU spike detected', eventType: 'PERFORMANCE' },
+      { ciType: 'BusinessService', severity: 'HIGH', message: 'E-commerce transactions failing', eventType: 'BUSINESS' }
+    ],
+    'network-infrastructure-outage': [
+      { ciType: 'NetworkSwitch', severity: 'CRITICAL', message: 'Core network switch interface failure', eventType: 'NETWORK' },
+      { ciType: 'Server', severity: 'HIGH', message: 'Server network connectivity lost', eventType: 'CONNECTIVITY' },
+      { ciType: 'Application', severity: 'HIGH', message: 'Application cluster communication failure', eventType: 'CLUSTER' },
+      { ciType: 'Server', severity: 'MEDIUM', message: 'Network latency spike detected', eventType: 'PERFORMANCE' }
+    ],
+    'api-gateway-failure': [
+      { ciType: 'APIService', severity: 'CRITICAL', message: 'API gateway service crashed', eventType: 'AVAILABILITY' },
+      { ciType: 'WebApplication', severity: 'CRITICAL', message: 'Frontend unable to reach backend APIs', eventType: 'CONNECTIVITY' },
+      { ciType: 'Microservice', severity: 'HIGH', message: 'Microservice authentication failures', eventType: 'AUTHENTICATION' },
+      { ciType: 'BusinessService', severity: 'HIGH', message: 'Customer portal inaccessible', eventType: 'BUSINESS' }
+    ]
+  };
+
+  const templates = scenarioEventTemplates[scenarioId] || scenarioEventTemplates['database-cascade-failure'];
+  const createdEvents = [];
+  const baseTime = new Date();
+  const timeSpanMs = timeSpanMinutes * 60 * 1000;
+
+  // Find CIs matching the scenario requirements
+  templates.slice(0, eventCount).forEach((template, idx) => {
+    const matchingCIs = demoData.configurationItems.filter(ci => {
+      if (template.ciType === 'NetworkSwitch' && ci.type === 'NetworkSwitch') return true;
+      if (template.ciType === 'Database' && ci.type === 'Database') return true;
+      if (template.ciType === 'APIService' && ci.type === 'APIService') return true;
+      if (template.ciType === 'WebApplication' && ci.type === 'WebApplication') return true;
+      if (template.ciType === 'Microservice' && ci.type === 'Microservice') return true;
+      if (template.ciType === 'Server' && ci.type === 'Server') return true;
+      if (template.ciType === 'BusinessService' && ci.type === 'BusinessService') return true;
+      if (template.ciType === 'Application' && (ci.type.includes('Application') || ci.type.includes('Service'))) return true;
+      return false;
+    });
+
+    const targetCI = matchingCIs[Math.floor(Math.random() * matchingCIs.length)] ||
+                     demoData.configurationItems[Math.floor(Math.random() * demoData.configurationItems.length)];
+
+    // Distribute events over time span with realistic timing
+    const timeOffset = (idx / eventCount) * timeSpanMs + (Math.random() - 0.5) * (timeSpanMs / 5);
+    const eventTime = new Date(baseTime.getTime() - timeSpanMs + timeOffset);
+
+    const event = {
+      id: uuidv4(),
+      message: `${template.message} - ${targetCI.name}`,
+      severity: template.severity,
+      eventType: template.eventType,
+      timestamp: eventTime.toISOString(),
+      status: 'OPEN',
+      ciId: targetCI.id,
+      metadata: JSON.stringify({
+        scenario: scenarioId,
+        simulatedAt: new Date().toISOString(),
+        correlationTarget: true
+      })
+    };
+
+    demoData.events.unshift(event);
+    createdEvents.push(event);
+  });
+
+  res.json({
+    scenario: scenarioId,
+    eventsCreated: createdEvents.length,
+    timeSpanMinutes,
+    events: createdEvents,
+    correlationReady: true,
+    message: `Created ${createdEvents.length} scenario events for ${scenarioId}`
+  });
+});
+
+// Cascade event simulation
+app.post('/api/demo/simulate-cascade', (req, res) => {
+  const { rootComponentId, cascadeDepth = 3, timeDelayMinutes = 5 } = req.body;
+
+  // Find a root component if not specified
+  const rootCI = rootComponentId ?
+    demoData.configurationItems.find(ci => ci.id === rootComponentId) :
+    demoData.configurationItems.find(ci => ci.type === 'Database' || ci.type === 'Server');
+
+  if (!rootCI) {
+    return res.status(404).json({ error: 'No suitable root component found for cascade simulation' });
+  }
+
+  // Find dependent components through relationships
+  const cascadeEvents = [];
+  const baseTime = new Date();
+  const timeDelayMs = timeDelayMinutes * 60 * 1000;
+
+  // Create root event
+  const rootEvent = {
+    id: uuidv4(),
+    message: `Cascade failure initiated from ${rootCI.name}`,
+    severity: 'CRITICAL',
+    eventType: 'CASCADE_ROOT',
+    timestamp: baseTime.toISOString(),
+    status: 'OPEN',
+    ciId: rootCI.id,
+    metadata: JSON.stringify({
+      cascadeRoot: true,
+      cascadeId: uuidv4(),
+      simulatedAt: new Date().toISOString()
+    })
+  };
+
+  demoData.events.unshift(rootEvent);
+  cascadeEvents.push(rootEvent);
+
+  // Find components that depend on or are connected to the root
+  const affectedComponents = [];
+
+  // Direct dependencies
+  demoData.relationships.forEach(rel => {
+    if (rel.to === rootCI.id) {
+      const dependentCI = demoData.configurationItems.find(ci => ci.id === rel.from);
+      if (dependentCI) {
+        affectedComponents.push({ ci: dependentCI, distance: 1, relationship: rel.type });
+      }
+    }
+  });
+
+  // Second level dependencies
+  affectedComponents.slice().forEach(comp => {
+    if (comp.distance === 1) {
+      demoData.relationships.forEach(rel => {
+        if (rel.to === comp.ci.id && !affectedComponents.find(ac => ac.ci.id === rel.from)) {
+          const secondLevelCI = demoData.configurationItems.find(ci => ci.id === rel.from);
+          if (secondLevelCI) {
+            affectedComponents.push({ ci: secondLevelCI, distance: 2, relationship: rel.type });
+          }
+        }
+      });
+    }
+  });
+
+  // Create cascade events with realistic timing
+  affectedComponents.slice(0, Math.min(10, affectedComponents.length)).forEach((comp, idx) => {
+    const cascadeDelay = comp.distance * timeDelayMs / 3; // Stagger by distance
+    const jitter = (Math.random() - 0.5) * timeDelayMs / 4; // Add randomness
+    const eventTime = new Date(baseTime.getTime() + cascadeDelay + jitter);
+
+    let severity = comp.distance === 1 ? 'HIGH' : 'MEDIUM';
+    if (comp.ci.type === 'BusinessService') severity = 'HIGH';
+
+    const cascadeEvent = {
+      id: uuidv4(),
+      message: `Cascade impact: ${comp.ci.name} affected by upstream failure`,
+      severity,
+      eventType: 'CASCADE_IMPACT',
+      timestamp: eventTime.toISOString(),
+      status: 'OPEN',
+      ciId: comp.ci.id,
+      metadata: JSON.stringify({
+        cascadeDistance: comp.distance,
+        relationshipType: comp.relationship,
+        rootCause: rootCI.id,
+        simulatedAt: new Date().toISOString()
+      })
+    };
+
+    demoData.events.unshift(cascadeEvent);
+    cascadeEvents.push(cascadeEvent);
+  });
+
+  res.json({
+    cascadeId: JSON.parse(rootEvent.metadata).cascadeId,
+    rootComponent: rootCI.name,
+    eventsCreated: cascadeEvents.length,
+    timespan: `${timeDelayMinutes} minutes`,
+    cascadeDepth,
+    events: cascadeEvents,
+    correlationReady: true,
+    message: `Simulated cascade failure with ${cascadeEvents.length} events`
+  });
+});
+
+// Real-time event streaming simulation
+let eventStreamInterval = null;
+
+app.post('/api/demo/start-event-stream', (req, res) => {
+  const { intervalSeconds = 10, eventTypes = ['PERFORMANCE', 'AVAILABILITY', 'CAPACITY'] } = req.body;
+
+  if (eventStreamInterval) {
+    clearInterval(eventStreamInterval);
+  }
+
+  const streamTemplates = [
+    { message: 'CPU utilization spike', severity: 'MEDIUM', type: 'PERFORMANCE' },
+    { message: 'Memory threshold exceeded', severity: 'MEDIUM', type: 'PERFORMANCE' },
+    { message: 'Service response time degraded', severity: 'HIGH', type: 'PERFORMANCE' },
+    { message: 'Network latency increased', severity: 'MEDIUM', type: 'NETWORK' },
+    { message: 'Disk space warning', severity: 'LOW', type: 'CAPACITY' },
+    { message: 'Application error rate increased', severity: 'HIGH', type: 'APPLICATION' }
+  ];
+
+  eventStreamInterval = setInterval(() => {
+    const template = streamTemplates[Math.floor(Math.random() * streamTemplates.length)];
+    const randomCI = demoData.configurationItems[Math.floor(Math.random() * demoData.configurationItems.length)];
+
+    const streamEvent = {
+      id: uuidv4(),
+      message: `${template.message} - ${randomCI.name}`,
+      severity: template.severity,
+      eventType: template.type,
+      timestamp: new Date().toISOString(),
+      status: 'OPEN',
+      ciId: randomCI.id,
+      metadata: JSON.stringify({
+        streamed: true,
+        streamedAt: new Date().toISOString()
+      })
+    };
+
+    demoData.events.unshift(streamEvent);
+
+    // Keep only last 500 events to prevent memory issues
+    if (demoData.events.length > 500) {
+      demoData.events = demoData.events.slice(0, 500);
+    }
+  }, intervalSeconds * 1000);
+
+  res.json({
+    message: 'Event stream started',
+    intervalSeconds,
+    eventTypes,
+    status: 'streaming'
+  });
+});
+
+app.post('/api/demo/stop-event-stream', (req, res) => {
+  if (eventStreamInterval) {
+    clearInterval(eventStreamInterval);
+    eventStreamInterval = null;
+  }
+
+  res.json({
+    message: 'Event stream stopped',
+    status: 'stopped'
+  });
 });
 
 // Serve main page
