@@ -13,7 +13,7 @@ class TestServer {
       global.testConfig?.neo4jURI || 'bolt://localhost:7687',
       neo4j.auth.basic(
         global.testConfig?.neo4jUser || 'neo4j',
-        global.testConfig?.neo4jPassword || 'password'
+        global.testConfig?.neo4jPassword || 'CHANGE_ME_INSECURE_DEFAULT'
       )
     );
 

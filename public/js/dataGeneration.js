@@ -28,14 +28,31 @@ class DataGenerationManager {
 
         this.socket.on('connect', () => {
             console.log('Connected to WebSocket server');
+            if (window.logInfo) {
+                window.logInfo('DataGen', 'WebSocket connected - ready for job progress updates');
+            }
         });
 
         this.socket.on('disconnect', () => {
             console.log('Disconnected from WebSocket server');
+            if (window.logWarning) {
+                window.logWarning('DataGen', 'WebSocket disconnected - job progress updates unavailable');
+            }
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('WebSocket connection error:', error);
+            if (window.logError) {
+                window.logError('DataGen', `WebSocket connection failed: ${error.message}`);
+            }
         });
 
         // Listen for job progress updates
         this.socket.on('job-progress', (data) => {
+            console.log('Job progress update received:', data);
+            if (window.logDebug) {
+                window.logDebug('DataGen', `Progress update: ${data.percentage}% - ${data.stage}`);
+            }
             if (this.currentJob && data.jobId === this.currentJob.jobId) {
                 this.updateJobProgress(data);
             }
@@ -43,13 +60,45 @@ class DataGenerationManager {
 
         // Listen for job creation/completion events
         this.socket.on('job-created', (job) => {
+            console.log('Job created:', job);
+            if (window.logSuccess) {
+                window.logSuccess('DataGen', `Job started: ${job.data?.scale || 'Unknown scale'}`);
+            }
             this.currentJob = job;
             this.showJobProgress();
             this.refreshQueueStats();
         });
 
+        this.socket.on('job-completed', (result) => {
+            console.log('Job completed:', result);
+            if (window.logSuccess) {
+                window.logSuccess('DataGen', `Job completed successfully: ${result.jobId}`);
+            }
+            if (this.currentJob && result.jobId === this.currentJob.id) {
+                this.hideJobProgress();
+                this.currentJob = null;
+            }
+            this.refreshQueueStats();
+        });
+
+        this.socket.on('job-failed', (result) => {
+            console.log('Job failed:', result);
+            if (window.logError) {
+                window.logError('DataGen', `Job failed: ${result.error || 'Unknown error'}`);
+            }
+            if (this.currentJob && result.jobId === this.currentJob.id) {
+                this.hideJobProgress();
+                this.currentJob = null;
+            }
+            this.refreshQueueStats();
+        });
+
         this.socket.on('job-cancelled', (result) => {
-            if (this.currentJob && result.jobId === this.currentJob.jobId) {
+            console.log('Job cancelled:', result);
+            if (window.logWarning) {
+                window.logWarning('DataGen', `Job cancelled: ${result.jobId}`);
+            }
+            if (this.currentJob && result.jobId === this.currentJob.id) {
                 this.hideJobProgress();
                 this.currentJob = null;
             }
@@ -190,13 +239,37 @@ class DataGenerationManager {
             const response = await fetch('/api/queue/stats');
             const stats = await response.json();
 
-            document.getElementById('active-jobs').textContent = stats.active;
-            document.getElementById('queued-jobs').textContent = stats.waiting;
-            document.getElementById('completed-jobs').textContent = stats.completed;
-            document.getElementById('failed-jobs').textContent = stats.failed;
+            document.getElementById('active-jobs').textContent = stats.active || 0;
+            document.getElementById('queued-jobs').textContent = stats.waiting || 0;
+            document.getElementById('completed-jobs').textContent = stats.completed || 0;
+            document.getElementById('failed-jobs').textContent = stats.failed || 0;
+
+            // Check if there's an active job we should display
+            if (stats.active > 0 && !this.currentJob) {
+                this.checkForActiveJob();
+            }
 
         } catch (error) {
             console.error('Failed to refresh queue stats:', error);
+        }
+    }
+
+    async checkForActiveJob() {
+        try {
+            const response = await fetch('/api/jobs');
+            const jobs = await response.json();
+
+            if (jobs.active && jobs.active.length > 0) {
+                const activeJob = jobs.active[0];
+                this.currentJob = activeJob;
+                this.showJobProgress();
+
+                if (window.logInfo) {
+                    window.logInfo('DataGen', `Found active job: ${activeJob.data?.config?.name || 'Unknown'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to check for active job:', error);
         }
     }
 
@@ -254,17 +327,30 @@ class DataGenerationManager {
         document.getElementById('cancel-current-job').style.display = 'block';
 
         if (this.currentJob) {
+            const jobData = this.currentJob.data || this.currentJob;
+            const config = jobData.config || {};
+
             document.getElementById('current-job-title').textContent =
-                this.currentJob.config.name || 'Data Generation Job';
-            document.getElementById('job-scale').textContent = this.currentJob.scale;
+                config.name || 'Data Generation Job';
+            document.getElementById('job-scale').textContent = jobData.scale || 'Unknown';
             document.getElementById('job-status').textContent = 'STARTING';
             document.getElementById('job-status').className = 'status-badge waiting';
             document.getElementById('estimated-duration').textContent =
-                this.currentJob.config.estimatedDuration || 'Unknown';
+                config.estimatedDuration || 'Unknown';
             document.getElementById('job-started').textContent =
-                new Date(this.currentJob.createdAt).toLocaleTimeString();
+                new Date(this.currentJob.createdAt || this.currentJob.timestamp || Date.now()).toLocaleTimeString();
             document.getElementById('total-cis').textContent =
-                this.currentJob.config.totalCIs?.toLocaleString() || 'Unknown';
+                config.totalCIs?.toLocaleString() || 'Unknown';
+
+            // Reset progress indicators
+            document.getElementById('progress-fill').style.width = '0%';
+            document.getElementById('progress-percentage').textContent = '0%';
+            document.getElementById('progress-stage').textContent = 'Initializing';
+            document.getElementById('progress-message').textContent = 'Starting data generation...';
+
+            if (window.logInfo) {
+                window.logInfo('DataGen', `Job progress display initialized for ${config.name || 'job'}`);
+            }
         }
     }
 

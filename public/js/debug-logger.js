@@ -1,48 +1,62 @@
 // Debug Logger Terminal Module
 class DebugLogger {
     constructor() {
-        this.isVisible = true;
+        this.isVisible = false; // Start hidden by default
         this.maxLogs = 500; // Prevent memory overflow
         this.logCount = 0;
-        this.init();
+
+        // Ensure DOM is ready before initializing
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
     }
 
     init() {
-        this.bindEvents();
-        this.log('info', 'DebugLogger initialized', { timestamp: new Date().toISOString() });
+        try {
+            this.bindEvents();
+            this.log('info', 'DebugLogger initialized', { timestamp: new Date().toISOString() });
 
-        // Intercept fetch for API monitoring
-        this.interceptFetch();
+            // Intercept fetch for API monitoring
+            this.interceptFetch();
 
-        // Monitor errors
-        this.interceptErrors();
+            // Monitor errors
+            this.interceptErrors();
+        } catch (error) {
+            console.error('Failed to initialize DebugLogger:', error);
+        }
     }
 
     bindEvents() {
-        // Toggle logger visibility
-        const toggleBtn = document.getElementById('toggle-logger');
-        const header = document.querySelector('.debug-header');
+        try {
+            // Toggle logger visibility
+            const toggleBtn = document.getElementById('toggle-logger');
+            const header = document.querySelector('.debug-header');
 
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggle();
-            });
-        }
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggle();
+                });
+            }
 
-        if (header) {
-            header.addEventListener('click', () => {
-                this.toggle();
-            });
-        }
+            if (header) {
+                header.addEventListener('click', () => {
+                    this.toggle();
+                });
+            }
 
-        // Clear logs
-        const clearBtn = document.getElementById('clear-logs');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.clear();
-            });
+            // Clear logs
+            const clearBtn = document.getElementById('clear-logs');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.clear();
+                });
+            }
+        } catch (error) {
+            console.error('Error binding debug logger events:', error);
         }
 
         // Keyboard shortcuts
@@ -316,11 +330,26 @@ class DebugLogger {
 }
 
 // Initialize global debug logger
-window.debugLogger = new DebugLogger();
+try {
+    window.debugLogger = new DebugLogger();
 
-// Expose convenient global functions
-window.logDebug = (message, data) => window.debugLogger.debug(message, data);
-window.logInfo = (message, data) => window.debugLogger.info(message, data);
-window.logSuccess = (message, data) => window.debugLogger.success(message, data);
-window.logWarning = (message, data) => window.debugLogger.warning(message, data);
-window.logError = (message, data) => window.debugLogger.error(message, data);
+    // Expose convenient global functions
+    window.logDebug = (message, data) => window.debugLogger?.debug(message, data);
+    window.logInfo = (message, data) => window.debugLogger?.info(message, data);
+    window.logSuccess = (message, data) => window.debugLogger?.success(message, data);
+    window.logWarning = (message, data) => window.debugLogger?.warning(message, data);
+    window.logError = (message, data) => window.debugLogger?.error(message, data);
+} catch (error) {
+    console.error('Failed to initialize global debug logger:', error);
+    // Provide fallback functions
+    window.logDebug = window.logInfo = window.logSuccess = window.logWarning = window.logError = () => {};
+}
+
+// Global error handler for uncaught JavaScript errors
+window.addEventListener('error', (event) => {
+    console.error('Global JavaScript error:', event.error);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+});

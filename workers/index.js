@@ -9,10 +9,15 @@ const io = require('socket.io-client');
 const uuidv4 = () => crypto.randomUUID();
 
 // Worker configuration
+// SECURITY NOTE: Default values are intentionally insecure to force proper configuration
+// Always set these environment variables in production:
+// - NEO4J_PASSWORD: Use a strong password, never the default
+// - REDIS_URL: Use authentication for Redis in production
+// - NEO4J_URI: Use secure connection strings in production
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const NEO4J_URI = process.env.NEO4J_URI || 'bolt://localhost:7687';
 const NEO4J_USER = process.env.NEO4J_USER || 'neo4j';
-const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'password';
+const NEO4J_PASSWORD = process.env.NEO4J_PASSWORD || 'CHANGE_ME_INSECURE_DEFAULT';
 const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY) || 3;
 const APP_SERVER_URL = process.env.APP_SERVER_URL || 'http://app:3000';
 

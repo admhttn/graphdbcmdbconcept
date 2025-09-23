@@ -7,9 +7,11 @@ class GraphAdvantagesDemo {
     }
 
     init() {
+        console.log('Initializing Graph Advantages Demo...');
         this.bindEvents();
         this.loadDemoScenarios();
         this.loadComponentList();
+        console.log('Graph Advantages Demo initialization complete');
     }
 
     bindEvents() {
@@ -114,10 +116,20 @@ class GraphAdvantagesDemo {
 
     renderComponentSelector(components) {
         const selector = document.getElementById('component-selector');
-        if (!selector) return;
+        if (!selector) {
+            console.error('Component selector element not found');
+            return;
+        }
+
+        console.log(`Rendering ${components.length} components in selector`);
 
         // Clear existing options except the first one
         selector.innerHTML = '<option value="">Select a component...</option>';
+
+        if (components.length === 0) {
+            selector.innerHTML += '<option value="" disabled>No components available</option>';
+            return;
+        }
 
         // Group components by type for better organization
         const groupedComponents = {};
@@ -145,6 +157,8 @@ class GraphAdvantagesDemo {
 
             selector.appendChild(optgroup);
         });
+
+        console.log('Component selector populated successfully');
     }
 
     async runScenario(scenario) {

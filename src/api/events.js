@@ -180,7 +180,7 @@ router.get('/stats', async (req, res) => {
 
     const cypher = `
       MATCH (e:Event)
-      WHERE e.timestamp >= ${timeFilter}
+      WHERE datetime(e.timestamp) >= ${timeFilter}
       RETURN
         count(e) as totalEvents,
         count(CASE WHEN e.severity = 'CRITICAL' THEN 1 END) as critical,
@@ -194,7 +194,19 @@ router.get('/stats', async (req, res) => {
     `;
 
     const result = await runReadQuery(cypher);
-    res.json(result[0] || {});
+    const stats = result[0] || {};
+
+    // Convert Neo4j integers to regular numbers
+    const convertedStats = {};
+    for (const [key, value] of Object.entries(stats)) {
+      if (value && typeof value === 'object' && 'low' in value) {
+        convertedStats[key] = value.low; // Convert Neo4j integer to JavaScript number
+      } else {
+        convertedStats[key] = value;
+      }
+    }
+
+    res.json(convertedStats);
   } catch (error) {
     console.error('Error fetching event statistics:', error);
     res.status(500).json({ error: 'Failed to fetch event statistics' });
