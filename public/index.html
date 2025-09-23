@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fancy CMDB Concept</title>
+    <title>Experimental CMDB</title>
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🔗 Fancy CMDB Concept</h1>
+            <h1>🔗 Experimental CMDB</h1>
             <p>Modern Configuration Management Database with Graph-based Correlation</p>
         </header>
 
@@ -26,36 +26,73 @@
         <main>
             <!-- Overview Tab -->
             <div id="overview" class="tab-content active">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>📊 Database Statistics</h2>
+                        <div class="section-actions">
+                            <button id="refresh-db-stats" class="secondary-btn">Refresh</button>
+                            <button id="clear-database" class="danger-btn">Clear All Data</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Core Metrics -->
                 <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Nodes</h3>
+                        <div class="stat-value" id="total-nodes">-</div>
+                        <div class="stat-detail">All graph nodes</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Relationships</h3>
+                        <div class="stat-value" id="total-relationships">-</div>
+                        <div class="stat-detail">Graph edges</div>
+                    </div>
                     <div class="stat-card">
                         <h3>Configuration Items</h3>
                         <div class="stat-value" id="ci-count">-</div>
+                        <div class="stat-detail">Infrastructure components</div>
                     </div>
                     <div class="stat-card">
-                        <h3>Active Events</h3>
+                        <h3>Events</h3>
                         <div class="stat-value" id="event-count">-</div>
+                        <div class="stat-detail">System events</div>
                     </div>
-                    <div class="stat-card">
-                        <h3>Critical Issues</h3>
-                        <div class="stat-value critical" id="critical-count">-</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Business Services</h3>
-                        <div class="stat-value" id="service-count">-</div>
+                </div>
+
+                <!-- Detailed Breakdowns -->
+                <div class="section">
+                    <h3>Node Type Distribution</h3>
+                    <div id="node-types-chart" class="chart-container">
+                        <div class="loading">Loading node types...</div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>Recent Events</h2>
-                    <div id="recent-events" class="events-list">
-                        <div class="loading">Loading events...</div>
+                    <h3>Relationship Type Distribution</h3>
+                    <div id="relationship-types-chart" class="chart-container">
+                        <div class="loading">Loading relationship types...</div>
                     </div>
                 </div>
 
                 <div class="section">
-                    <h2>System Health</h2>
-                    <div id="health-chart"></div>
+                    <h3>Performance Metrics</h3>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <span class="metric-label">Query Response Time:</span>
+                            <span class="metric-value" id="query-time">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Recent Activity (1h):</span>
+                            <span class="metric-value" id="recent-activity">-</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Database Updated:</span>
+                            <span class="metric-value" id="last-updated">-</span>
+                        </div>
+                    </div>
                 </div>
+
             </div>
 
             <!-- Topology Tab -->
@@ -63,11 +100,13 @@
                 <div class="toolbar">
                     <button id="refresh-topology">Refresh</button>
                     <select id="topology-filter">
-                        <option value="">All Components</option>
-                        <option value="Server">Servers</option>
-                        <option value="Application">Applications</option>
+                        <option value="">All Components (Limited)</option>
+                        <option value="Server" selected>Servers</option>
                         <option value="Database">Databases</option>
-                        <option value="NetworkSwitch">Network</option>
+                        <option value="WebApplication">Web Applications</option>
+                        <option value="BusinessService">Business Services</option>
+                        <option value="Region">Regions</option>
+                        <option value="DataCenter">Data Centers</option>
                     </select>
                     <button id="reset-zoom">Reset Zoom</button>
                 </div>
@@ -406,7 +445,7 @@
     </div>
 
     <!-- Debug Logger Terminal -->
-    <div id="debug-logger" class="debug-logger">
+    <div id="debug-logger" class="debug-logger hidden">
         <div class="debug-header">
             <div class="debug-title">
                 <span class="debug-icon">📊</span>
@@ -431,10 +470,34 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/debug-logger.js"></script>
     <script src="js/app.js"></script>
-    <script src="js/topology.js"></script>
-    <script src="js/events.js"></script>
+    <script src="js/topology-simple.js"></script>
     <script src="js/correlation.js"></script>
     <script src="js/dataGeneration.js"></script>
     <script src="js/graph-advantages-demo.js"></script>
+
+    <script>
+        // Initialize application components after all scripts load
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Initialize simple topology
+                window.TopologyViz = new SimpleTopology();
+
+                // Initialize demo
+                window.GraphDemo = new GraphAdvantagesDemo();
+
+                // Initialize main app
+                window.cmdbApp = new CMDBApp();
+
+                if (window.logInfo) {
+                    window.logInfo('All CMDB components initialized successfully');
+                }
+            } catch (error) {
+                console.error('Failed to initialize CMDB components:', error);
+                if (window.logError) {
+                    window.logError('Component initialization failed', { error: error.message });
+                }
+            }
+        });
+    </script>
 </body>
 </html>

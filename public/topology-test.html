@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Topology Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #topology-viz {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+        }
+        .loading {
+            padding: 20px;
+            text-align: center;
+            font-size: 16px;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        select {
+            margin: 10px 5px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <h1>Topology Test Page</h1>
+    <div>
+        <button id="refresh-topology">Refresh</button>
+        <select id="topology-filter">
+            <option value="">All Components</option>
+            <option value="Server" selected>Servers</option>
+            <option value="Database">Databases</option>
+            <option value="WebApplication">Web Applications</option>
+            <option value="BusinessService">Business Services</option>
+        </select>
+    </div>
+    <div id="topology-viz">
+        <div class="loading">Initializing...</div>
+    </div>
+
+    <script src="js/topology-simple.js"></script>
+    <script>
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Initializing topology test...');
+            window.topology = new SimpleTopology();
+        });
+    </script>
+</body>
+</html>

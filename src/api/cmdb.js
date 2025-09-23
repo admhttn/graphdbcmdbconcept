@@ -16,6 +16,172 @@ async function ensureInitialized() {
   }
 }
 
+// Get comprehensive database statistics
+router.get('/database/stats', async (req, res) => {
+  try {
+    await ensureInitialized();
+
+    // Get comprehensive database metrics in parallel
+    const queries = [
+      // Node counts by type
+      'MATCH (ci:ConfigurationItem) RETURN count(ci) as configItems',
+      'MATCH (e:Event) RETURN count(e) as events',
+      'MATCH (s:Service) RETURN count(s) as services',
+
+      // Relationship counts
+      'MATCH ()-[r]->() RETURN count(r) as totalRelationships',
+      'MATCH (ci:ConfigurationItem)-[r]-(connected:ConfigurationItem) RETURN count(DISTINCT r) as ciRelationships',
+
+      // Node type breakdown
+      'MATCH (ci:ConfigurationItem) RETURN ci.type as nodeType, count(ci) as count ORDER BY count DESC',
+
+      // Relationship type breakdown
+      'MATCH ()-[r]->() RETURN type(r) as relType, count(r) as count ORDER BY count DESC LIMIT 10',
+
+      // Database size approximation (node + relationship counts)
+      'MATCH (n) RETURN count(n) as totalNodes',
+
+      // Event statistics by severity
+      'MATCH (e:Event) RETURN e.severity as severity, count(e) as count ORDER BY count DESC',
+
+      // Recent activity
+      'MATCH (e:Event) WHERE datetime(e.timestamp) >= datetime() - duration("PT1H") RETURN count(e) as recentEvents'
+    ];
+
+    const results = await Promise.all(
+      queries.map(query => runReadQuery(query).catch(error => {
+        console.error(`Query failed: ${query}`, error);
+        return [];
+      }))
+    );
+
+    // Helper function to convert Neo4j integers
+    const convertNeo4jInt = (value) => {
+      if (value && typeof value === 'object' && 'low' in value) {
+        return value.low;
+      }
+      return value || 0;
+    };
+
+    // Process results
+    const stats = {
+      nodes: {
+        configItems: convertNeo4jInt(results[0][0]?.configItems),
+        events: convertNeo4jInt(results[1][0]?.events),
+        services: convertNeo4jInt(results[2][0]?.services),
+        total: convertNeo4jInt(results[7][0]?.totalNodes)
+      },
+      relationships: {
+        total: convertNeo4jInt(results[3][0]?.totalRelationships),
+        ciRelationships: convertNeo4jInt(results[4][0]?.ciRelationships)
+      },
+      nodeTypes: (results[5] || []).map(row => ({
+        type: row.nodeType,
+        count: convertNeo4jInt(row.count)
+      })),
+      relationshipTypes: (results[6] || []).map(row => ({
+        type: row.relType,
+        count: convertNeo4jInt(row.count)
+      })),
+      eventsBySeverity: (results[8] || []).map(row => ({
+        severity: row.severity,
+        count: convertNeo4jInt(row.count)
+      })),
+      activity: {
+        recentEvents: convertNeo4jInt(results[9][0]?.recentEvents)
+      },
+      performance: {
+        queryTime: Date.now(), // Will be calculated by client
+        lastUpdated: new Date().toISOString()
+      }
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching database statistics:', error);
+    res.status(500).json({ error: 'Failed to fetch database statistics' });
+  }
+});
+
+// Clear all demo data
+router.delete('/database/clear', async (req, res) => {
+  try {
+    await ensureInitialized();
+
+    const startTime = Date.now();
+
+    // Clear all data in sequence to avoid constraint issues
+    const clearQueries = [
+      'MATCH (e:Event) DETACH DELETE e',
+      'MATCH (s:Service) DETACH DELETE s',
+      'MATCH (ci:ConfigurationItem) DETACH DELETE ci',
+      'MATCH (n) DETACH DELETE n' // Clean up any remaining nodes
+    ];
+
+    let deletedCounts = {
+      events: 0,
+      services: 0,
+      configItems: 0,
+      totalNodes: 0
+    };
+
+    for (const query of clearQueries) {
+      try {
+        await runWriteQuery(query);
+      } catch (error) {
+        console.error(`Clear query failed: ${query}`, error);
+      }
+    }
+
+    // Verify cleanup
+    const verificationResult = await runReadQuery('MATCH (n) RETURN count(n) as remaining');
+    const remaining = verificationResult[0]?.remaining || 0;
+
+    const duration = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      message: 'Database cleared successfully',
+      duration: `${duration}ms`,
+      remainingNodes: remaining.low || remaining,
+      clearedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error clearing database:', error);
+    res.status(500).json({ error: 'Failed to clear database', details: error.message });
+  }
+});
+
+// Get count of Configuration Items
+router.get('/items/count', async (req, res) => {
+  try {
+    await ensureInitialized();
+
+    const { type } = req.query;
+    let cypher = 'MATCH (ci:ConfigurationItem)';
+    let params = {};
+
+    if (type) {
+      cypher += ' WHERE ci.type = $type';
+      params.type = type;
+    }
+
+    cypher += ' RETURN count(ci) as total';
+
+    const result = await runReadQuery(cypher, params);
+    const count = result[0]?.total;
+
+    // Convert Neo4j integer to regular number
+    const totalCount = typeof count === 'object' && count.low !== undefined ? count.low : count;
+
+    res.json({ total: totalCount || 0 });
+  } catch (error) {
+    console.error('Error fetching CI count:', error);
+    res.status(500).json({ error: 'Failed to fetch configuration items count' });
+  }
+});
+
 // Get all Configuration Items
 router.get('/items', async (req, res) => {
   try {
@@ -216,7 +382,8 @@ router.get('/topology', async (req, res) => {
   try {
     await ensureInitialized();
 
-    const { depth = 3, startNode } = req.query;
+    const { depth = 3, startNode, type, limit = 100 } = req.query;
+    const nodeLimit = Math.min(parseInt(limit) || 100, 500); // Max 500 nodes for safety
 
     let cypher, params;
 
@@ -241,23 +408,36 @@ router.get('/topology', async (req, res) => {
       `;
       params = { startNode, depth: parseInt(depth) };
     } else {
+      // Build base query with optional type filter
+      let nodeQuery = 'MATCH (ci:ConfigurationItem)';
+      params = { nodeLimit: neo4j.int(nodeLimit) };
+
+      if (type) {
+        nodeQuery += ' WHERE ci.type = $type';
+        params.type = type;
+      }
+
+      // Get filtered nodes AND their connected nodes for proper topology
       cypher = `
-        MATCH (ci:ConfigurationItem)
+        ${nodeQuery}
+        WITH ci LIMIT $nodeLimit
         OPTIONAL MATCH (ci)-[r]-(connected:ConfigurationItem)
-        WITH collect(DISTINCT {
-          id: ci.id,
-          name: ci.name,
-          type: ci.type,
-          status: coalesce(ci.status, 'unknown')
-        }) as nodes,
-        collect(DISTINCT {
-          from: startNode(r).id,
-          to: endNode(r).id,
-          type: type(r)
-        }) as relationships
-        RETURN nodes, relationships
+        WITH collect(DISTINCT ci) + collect(DISTINCT connected) as allNodes,
+             collect(DISTINCT r) as allRelationships
+        UNWIND allNodes as node
+        WITH collect(DISTINCT node) as finalNodes, allRelationships
+        RETURN [n IN finalNodes WHERE n IS NOT NULL | {
+          id: n.id,
+          name: n.name,
+          type: n.type,
+          status: coalesce(n.status, 'unknown')
+        }] as nodes,
+        [rel IN allRelationships WHERE rel IS NOT NULL | {
+          from: startNode(rel).id,
+          to: endNode(rel).id,
+          type: type(rel)
+        }] as relationships
       `;
-      params = {};
     }
 
     const result = await runReadQuery(cypher, params);

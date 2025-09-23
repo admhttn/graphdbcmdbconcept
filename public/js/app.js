@@ -2,21 +2,34 @@
 class CMDBApp {
     constructor() {
         this.currentTab = 'overview';
-        this.init();
+
+        // Ensure DOM is ready before initializing
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
     }
 
     init() {
-        // Wait for debug logger to be available
-        if (window.logInfo) {
-            window.logInfo('CMDB Application initializing');
-        }
+        try {
+            // Wait for debug logger to be available
+            if (window.logInfo) {
+                window.logInfo('CMDB Application initializing');
+            }
 
-        this.bindEvents();
-        this.loadOverview();
-        this.startAutoRefresh();
+            this.bindEvents();
+            this.loadOverview();
+            this.startAutoRefresh();
 
-        if (window.logSuccess) {
-            window.logSuccess('CMDB Application initialized successfully');
+            if (window.logSuccess) {
+                window.logSuccess('CMDB Application initialized successfully');
+            }
+        } catch (error) {
+            console.error('Failed to initialize CMDB Application:', error);
+            if (window.logError) {
+                window.logError('CMDB App initialization failed', { error: error.message });
+            }
         }
     }
 
@@ -51,6 +64,15 @@ class CMDBApp {
         document.getElementById('simulate-event')?.addEventListener('click', () => {
             this.simulateEvent();
         });
+
+        // Database management buttons
+        document.getElementById('refresh-db-stats')?.addEventListener('click', () => {
+            this.loadOverview();
+        });
+
+        document.getElementById('clear-database')?.addEventListener('click', () => {
+            this.clearDatabase();
+        });
     }
 
     switchTab(tabName) {
@@ -75,7 +97,15 @@ class CMDBApp {
                 break;
             case 'topology':
                 if (window.TopologyViz) {
+                    if (window.logInfo) {
+                        window.logInfo('Loading topology tab - calling TopologyViz.load()');
+                    }
                     window.TopologyViz.load();
+                } else {
+                    console.error('TopologyViz not available');
+                    if (window.logError) {
+                        window.logError('TopologyViz instance not found when switching to topology tab');
+                    }
                 }
                 break;
             case 'events':
@@ -97,30 +127,82 @@ class CMDBApp {
 
     async loadOverview() {
         try {
-            // Load basic statistics
-            const [ciResponse, eventResponse, statsResponse] = await Promise.all([
-                fetch('/api/cmdb/items'),
-                fetch('/api/events'),
-                fetch('/api/events/stats')
-            ]);
+            const startTime = Date.now();
 
-            const cis = await ciResponse.json();
-            const events = await eventResponse.json();
-            const stats = await statsResponse.json();
+            // Load comprehensive database statistics
+            const response = await fetch('/api/cmdb/database/stats');
+            const dbStats = await response.json();
 
-            // Update statistics
-            document.getElementById('ci-count').textContent = cis.length;
-            document.getElementById('event-count').textContent = stats.open || 0;
-            document.getElementById('critical-count').textContent = stats.critical || 0;
-            document.getElementById('service-count').textContent = '3'; // Hardcoded for demo
+            const queryTime = Date.now() - startTime;
 
-            // Load recent events
-            this.displayRecentEvents(events.slice(0, 5));
+            // Update core metrics
+            document.getElementById('total-nodes').textContent = dbStats.nodes?.total?.toLocaleString() || 0;
+            document.getElementById('total-relationships').textContent = dbStats.relationships?.total?.toLocaleString() || 0;
+            document.getElementById('ci-count').textContent = dbStats.nodes?.configItems?.toLocaleString() || 0;
+            document.getElementById('event-count').textContent = dbStats.nodes?.events?.toLocaleString() || 0;
+
+            // Update performance metrics
+            document.getElementById('query-time').textContent = `${queryTime}ms`;
+            document.getElementById('recent-activity').textContent = dbStats.activity?.recentEvents?.toLocaleString() || 0;
+            document.getElementById('last-updated').textContent =
+                new Date(dbStats.performance?.lastUpdated).toLocaleTimeString() || 'Unknown';
+
+            // Render charts
+            this.renderNodeTypesChart(dbStats.nodeTypes || []);
+            this.renderRelationshipTypesChart(dbStats.relationshipTypes || []);
+
+            if (window.logSuccess) {
+                window.logSuccess('Database statistics loaded', {
+                    nodes: dbStats.nodes?.total,
+                    relationships: dbStats.relationships?.total,
+                    queryTime: `${queryTime}ms`
+                });
+            }
 
         } catch (error) {
-            console.error('Error loading overview:', error);
-            this.showError('Failed to load overview data');
+            console.error('Error loading database statistics:', error);
+            this.showError('Failed to load database statistics');
         }
+    }
+
+    renderNodeTypesChart(nodeTypes) {
+        const container = document.getElementById('node-types-chart');
+        if (!container || !nodeTypes.length) {
+            container.innerHTML = '<div class="loading">No node type data</div>';
+            return;
+        }
+
+        const total = nodeTypes.reduce((sum, item) => sum + item.count, 0);
+
+        container.innerHTML = nodeTypes.map(item => `
+            <div class="chart-item">
+                <div class="chart-label">${item.type}</div>
+                <div class="chart-bar">
+                    <div class="chart-fill" style="width: ${(item.count / total * 100)}%"></div>
+                </div>
+                <div class="chart-value">${item.count.toLocaleString()}</div>
+            </div>
+        `).join('');
+    }
+
+    renderRelationshipTypesChart(relationshipTypes) {
+        const container = document.getElementById('relationship-types-chart');
+        if (!container || !relationshipTypes.length) {
+            container.innerHTML = '<div class="loading">No relationship type data</div>';
+            return;
+        }
+
+        const total = relationshipTypes.reduce((sum, item) => sum + item.count, 0);
+
+        container.innerHTML = relationshipTypes.map(item => `
+            <div class="chart-item">
+                <div class="chart-label">${item.type}</div>
+                <div class="chart-bar">
+                    <div class="chart-fill" style="width: ${(item.count / total * 100)}%"></div>
+                </div>
+                <div class="chart-value">${item.count.toLocaleString()}</div>
+            </div>
+        `).join('');
     }
 
     displayRecentEvents(events) {
@@ -387,6 +469,59 @@ class CMDBApp {
                 this.loadOverview();
             }
         }, 30000);
+    }
+
+    async clearDatabase() {
+        if (!confirm('⚠️ This will permanently delete ALL data in the database.\n\nThis includes:\n• All Configuration Items\n• All Events\n• All Relationships\n• All Services\n\nAre you sure you want to continue?')) {
+            return;
+        }
+
+        try {
+            const startTime = Date.now();
+
+            if (window.logWarning) {
+                window.logWarning('Starting database clear operation');
+            }
+
+            // Show loading state
+            document.getElementById('total-nodes').textContent = 'Clearing...';
+            document.getElementById('total-relationships').textContent = 'Clearing...';
+            document.getElementById('ci-count').textContent = 'Clearing...';
+            document.getElementById('event-count').textContent = 'Clearing...';
+
+            const response = await fetch('/api/cmdb/database/clear', {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            const duration = Date.now() - startTime;
+
+            if (window.logSuccess) {
+                window.logSuccess('Database cleared successfully', {
+                    duration: `${duration}ms`,
+                    remainingNodes: result.remainingNodes
+                });
+            }
+
+            // Refresh the overview to show empty database
+            await this.loadOverview();
+
+            this.showSuccess(`Database cleared successfully in ${duration}ms`);
+
+        } catch (error) {
+            console.error('Error clearing database:', error);
+            if (window.logError) {
+                window.logError('Failed to clear database', { error: error.message });
+            }
+            this.showError(`Failed to clear database: ${error.message}`);
+
+            // Refresh overview even on error to show current state
+            this.loadOverview();
+        }
     }
 }
 

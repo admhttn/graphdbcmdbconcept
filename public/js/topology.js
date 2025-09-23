@@ -7,17 +7,35 @@ class TopologyVisualization {
         this.links = [];
         this.width = 800;
         this.height = 600;
-        this.init();
+
+        // Wait for D3 and DOM to be ready
+        if (typeof d3 === 'undefined') {
+            console.error('D3.js is not loaded');
+            return;
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
     }
 
     init() {
-        if (window.logInfo) {
-            window.logInfo('Topology visualization initializing');
-        }
-        this.bindEvents();
-        this.setupVisualization();
-        if (window.logSuccess) {
-            window.logSuccess('Topology visualization initialized');
+        try {
+            if (window.logInfo) {
+                window.logInfo('Topology visualization initializing');
+            }
+            this.bindEvents();
+            this.setupVisualization();
+            if (window.logSuccess) {
+                window.logSuccess('Topology visualization initialized');
+            }
+        } catch (error) {
+            console.error('Failed to initialize topology visualization:', error);
+            if (window.logError) {
+                window.logError('Topology visualization initialization failed', { error: error.message });
+            }
         }
     }
 
@@ -37,6 +55,11 @@ class TopologyVisualization {
 
     setupVisualization() {
         const container = document.getElementById('topology-viz');
+        if (!container) {
+            console.error('Topology container not found');
+            return;
+        }
+
         container.innerHTML = '';
 
         // Create SVG
@@ -44,7 +67,13 @@ class TopologyVisualization {
             .append('svg')
             .attr('width', '100%')
             .attr('height', '100%')
-            .attr('viewBox', `0 0 ${this.width} ${this.height}`);
+            .attr('viewBox', `0 0 ${this.width} ${this.height}`)
+            .style('border', '1px solid #ddd'); // Add border for debugging
+
+        if (!this.svg || this.svg.empty()) {
+            console.error('Failed to create SVG element');
+            return;
+        }
 
         // Create groups for links and nodes
         this.svg.append('g').attr('class', 'links');
@@ -65,6 +94,10 @@ class TopologyVisualization {
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(this.width / 2, this.height / 2))
             .force('collision', d3.forceCollide().radius(25));
+
+        if (window.logInfo) {
+            window.logInfo('Topology SVG visualization setup completed');
+        }
     }
 
     async load() {
@@ -72,8 +105,64 @@ class TopologyVisualization {
             if (window.logInfo) {
                 window.logInfo('Loading topology data');
             }
-            const response = await fetch('/api/cmdb/topology');
+
+            // Check if container exists
+            const container = document.getElementById('topology-viz');
+            if (!container) {
+                console.error('Topology container not found');
+                if (window.logError) {
+                    window.logError('Topology container element not found');
+                }
+                return;
+            }
+
+            // Show loading state
+            container.innerHTML = '<div class="loading">Loading topology...</div>';
+
+            // Get current filter to apply default limit
+            const filter = document.getElementById('topology-filter')?.value || '';
+            const url = filter ? `/api/cmdb/topology?type=${filter}&limit=100` : '/api/cmdb/topology?limit=100';
+
+            if (window.logInfo) {
+                window.logInfo(`Fetching topology data from: ${url}`);
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const data = await response.json();
+
+            if (window.logInfo) {
+                window.logInfo(`Raw API response: ${data.nodes?.length || 0} nodes, ${data.relationships?.length || 0} relationships`);
+            }
+
+            // Validate response data
+            if (!data.nodes || !Array.isArray(data.nodes)) {
+                throw new Error('Invalid response: nodes array missing');
+            }
+            if (!data.relationships || !Array.isArray(data.relationships)) {
+                throw new Error('Invalid response: relationships array missing');
+            }
+
+            // Apply safety limits for large topologies
+            const maxNodes = 200;
+            const maxLinks = 300;
+
+            if (data.nodes.length > maxNodes) {
+                if (window.logWarning) {
+                    window.logWarning(`Topology too large (${data.nodes.length} nodes), limiting to ${maxNodes} nodes for performance`);
+                }
+                data.nodes = data.nodes.slice(0, maxNodes);
+            }
+
+            if (data.relationships.length > maxLinks) {
+                if (window.logWarning) {
+                    window.logWarning(`Too many relationships (${data.relationships.length}), limiting to ${maxLinks} for performance`);
+                }
+                data.relationships = data.relationships.slice(0, maxLinks);
+            }
 
             this.nodes = data.nodes.map(node => ({
                 ...node,
@@ -81,27 +170,62 @@ class TopologyVisualization {
                 y: Math.random() * this.height
             }));
 
-            this.links = data.relationships.map(link => ({
+            // Create a set of valid node IDs for validation
+            const nodeIds = new Set(this.nodes.map(node => node.id));
+
+            // Filter out relationships that reference non-existent nodes
+            const validRelationships = data.relationships.filter(link => {
+                const sourceExists = nodeIds.has(link.from);
+                const targetExists = nodeIds.has(link.to);
+
+                if (!sourceExists || !targetExists) {
+                    if (window.logWarning) {
+                        window.logWarning(`Skipping invalid relationship: ${link.from} -> ${link.to} (missing node)`);
+                    }
+                    return false;
+                }
+                return true;
+            });
+
+            this.links = validRelationships.map(link => ({
                 source: link.from,
                 target: link.to,
                 type: link.type
             }));
 
-            if (window.logSuccess) {
-                window.logSuccess(`Topology loaded: ${this.nodes.length} nodes, ${this.links.length} links`);
+            if (validRelationships.length !== data.relationships.length) {
+                if (window.logWarning) {
+                    window.logWarning(`Filtered out ${data.relationships.length - validRelationships.length} invalid relationships`);
+                }
             }
+
+            if (window.logSuccess) {
+                window.logSuccess(`Topology processed: ${this.nodes.length} nodes, ${this.links.length} links`);
+            }
+
             this.render();
         } catch (error) {
             if (window.logError) {
-                window.logError('Error loading topology:', { error: error.message });
+                window.logError('Error loading topology:', { error: error.message, stack: error.stack });
             }
             console.error('Error loading topology:', error);
-            document.getElementById('topology-viz').innerHTML =
-                '<div class="loading">Failed to load topology data</div>';
+            const container = document.getElementById('topology-viz');
+            if (container) {
+                container.innerHTML = `<div class="loading" style="color: red;">Failed to load topology: ${error.message}</div>`;
+            }
         }
     }
 
     render() {
+        if (!this.svg) {
+            console.error('SVG not initialized');
+            return;
+        }
+
+        if (window.logInfo) {
+            window.logInfo(`Rendering topology: ${this.nodes.length} nodes, ${this.links.length} links`);
+        }
+
         // Clear existing elements
         this.svg.select('.links').selectAll('*').remove();
         this.svg.select('.nodes').selectAll('*').remove();
@@ -208,35 +332,11 @@ class TopologyVisualization {
 
     applyFilter(filterType) {
         if (window.logInfo) {
-            window.logInfo(`Applying topology filter: ${filterType || 'none'}`);
+            window.logInfo(`Applying topology filter: ${filterType || 'all'}`);
         }
 
-        if (!filterType) {
-            // Show all nodes and links
-            this.svg.selectAll('.node').style('opacity', 1);
-            this.svg.selectAll('.link').style('opacity', 1);
-            this.svg.selectAll('.link-label').style('opacity', 1);
-            return;
-        }
-
-        // Filter nodes by type
-        this.svg.selectAll('.node')
-            .style('opacity', d => d.type === filterType ? 1 : 0.2);
-
-        // Filter links connected to visible nodes
-        this.svg.selectAll('.link')
-            .style('opacity', d => {
-                const sourceVisible = d.source.type === filterType;
-                const targetVisible = d.target.type === filterType;
-                return (sourceVisible || targetVisible) ? 1 : 0.1;
-            });
-
-        this.svg.selectAll('.link-label')
-            .style('opacity', d => {
-                const sourceVisible = d.source.type === filterType;
-                const targetVisible = d.target.type === filterType;
-                return (sourceVisible || targetVisible) ? 1 : 0.1;
-            });
+        // Reload topology data with the new filter
+        this.load();
     }
 
     resetZoom() {
