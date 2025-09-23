@@ -5,7 +5,7 @@ global.testConfig = {
   baseURL: process.env.TEST_BASE_URL || 'http://localhost:3000',
   neo4jURI: process.env.TEST_NEO4J_URI || 'bolt://localhost:7687',
   neo4jUser: process.env.TEST_NEO4J_USER || 'neo4j',
-  neo4jPassword: process.env.TEST_NEO4J_PASSWORD || 'password',
+  neo4jPassword: process.env.TEST_NEO4J_PASSWORD || 'CHANGE_ME_INSECURE_DEFAULT',
   redisURL: process.env.TEST_REDIS_URL || 'redis://localhost:6379',
   timeout: {
     short: 5000,
