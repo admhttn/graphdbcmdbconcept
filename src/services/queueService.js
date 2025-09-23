@@ -68,7 +68,8 @@ const SCALE_CONFIGS = {
     applicationsCount: 200,
     databasesCount: 20,
     eventCount: 500,
-    estimatedDuration: '30 seconds'
+    estimatedDuration: '30 seconds',
+    clearExisting: false  // Preserve existing data by default
   },
   medium: {
     name: 'Medium Demo',
@@ -80,7 +81,8 @@ const SCALE_CONFIGS = {
     applicationsCount: 2000,
     databasesCount: 200,
     eventCount: 2000,
-    estimatedDuration: '5 minutes'
+    estimatedDuration: '5 minutes',
+    clearExisting: false  // Preserve existing data by default
   },
   large: {
     name: 'Large Demo',
@@ -92,7 +94,8 @@ const SCALE_CONFIGS = {
     applicationsCount: 20000,
     databasesCount: 2000,
     eventCount: 10000,
-    estimatedDuration: '30 minutes'
+    estimatedDuration: '30 minutes',
+    clearExisting: false  // Preserve existing data by default
   },
   enterprise: {
     name: 'Enterprise Demo',
@@ -104,7 +107,8 @@ const SCALE_CONFIGS = {
     applicationsCount: 100000,
     databasesCount: 10000,
     eventCount: 50000,
-    estimatedDuration: '2-3 hours'
+    estimatedDuration: '2-3 hours',
+    clearExisting: false  // Preserve existing data by default
   }
 };
 

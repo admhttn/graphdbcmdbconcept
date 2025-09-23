@@ -216,6 +216,19 @@
                         </div>
 
                         <div class="job-controls">
+                            <div class="generation-options">
+                                <h4>Generation Options</h4>
+                                <div class="option-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="clear-existing-data" />
+                                        <span class="checkmark"></span>
+                                        Clear existing data before generation
+                                    </label>
+                                    <div class="option-help">
+                                        ⚠️ Warning: This will permanently delete all existing CIs, events, and relationships
+                                    </div>
+                                </div>
+                            </div>
                             <button id="start-generation" class="primary-btn" disabled>Start Data Generation</button>
                             <button id="cancel-current-job" class="danger-btn" style="display: none;">Cancel Job</button>
                         </div>
