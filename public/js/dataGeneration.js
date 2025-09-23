@@ -177,13 +177,19 @@ class DataGenerationManager {
         }
 
         try {
+            // Get clearExisting option from checkbox
+            const clearExisting = document.getElementById('clear-existing-data').checked;
+
             const response = await fetch('/api/jobs', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    scale: this.selectedScale
+                    scale: this.selectedScale,
+                    customConfig: {
+                        clearExisting: clearExisting
+                    }
                 })
             });
 

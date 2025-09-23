@@ -207,44 +207,49 @@ dataGenerationQueue.process('generate-enterprise-data', WORKER_CONCURRENCY, asyn
   try {
     logger.info(`🚀 Starting enterprise data generation job ${jobId} at scale: ${scale}`);
 
-    // Stage 1: Clear existing data
-    await updateProgress(jobId, 'initialization', 0, 100, 'Clearing existing data...');
+    // Stage 1: Clear existing data (only if clearExisting is true)
+    if (config.clearExisting !== false) {
+      await updateProgress(jobId, 'initialization', 0, 100, 'Clearing existing data...');
 
-    // Clear data in batches to avoid memory issues
-    let deletedCount = 0;
-    const batchSize = 1000;
-    let totalNodes = 0;
+      // Clear data in batches to avoid memory issues
+      let deletedCount = 0;
+      const batchSize = 1000;
+      let totalNodes = 0;
 
-    // First, get total node count for progress tracking
-    const countResult = await session.run('MATCH (n) RETURN count(n) as total');
-    totalNodes = countResult.records[0].get('total').toNumber();
+      // First, get total node count for progress tracking
+      const countResult = await session.run('MATCH (n) RETURN count(n) as total');
+      totalNodes = countResult.records[0].get('total').toNumber();
 
-    if (totalNodes > 0) {
-      logger.info(`Clearing ${totalNodes} existing nodes in batches of ${batchSize}...`);
+      if (totalNodes > 0) {
+        logger.info(`Clearing ${totalNodes} existing nodes in batches of ${batchSize}...`);
 
-      while (true) {
-        const deleteResult = await session.run(`
-          MATCH (n)
-          WITH n LIMIT ${batchSize}
-          DETACH DELETE n
-          RETURN count(*) as deleted
-        `);
+        while (true) {
+          const deleteResult = await session.run(`
+            MATCH (n)
+            WITH n LIMIT ${batchSize}
+            DETACH DELETE n
+            RETURN count(*) as deleted
+          `);
 
-        const deleted = deleteResult.records[0]?.get('deleted').toNumber() || 0;
-        if (deleted === 0) break;
+          const deleted = deleteResult.records[0]?.get('deleted').toNumber() || 0;
+          if (deleted === 0) break;
 
-        deletedCount += deleted;
-        const progress = Math.min(100, Math.round((deletedCount / totalNodes) * 100));
-        await updateProgress(jobId, 'initialization', progress, 100, `Cleared ${deletedCount}/${totalNodes} nodes...`);
+          deletedCount += deleted;
+          const progress = Math.min(100, Math.round((deletedCount / totalNodes) * 100));
+          await updateProgress(jobId, 'initialization', progress, 100, `Cleared ${deletedCount}/${totalNodes} nodes...`);
 
-        // Small delay to prevent overwhelming the database
-        if (deletedCount < totalNodes) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Small delay to prevent overwhelming the database
+          if (deletedCount < totalNodes) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
         }
       }
-    }
 
-    await updateProgress(jobId, 'initialization', 100, 100, 'Data cleared successfully');
+      await updateProgress(jobId, 'initialization', 100, 100, 'Data cleared successfully');
+    } else {
+      await updateProgress(jobId, 'initialization', 100, 100, 'Skipping data clearing - preserving existing data');
+      logger.info(`Preserving existing data as requested (clearExisting=false)`);
+    }
 
     // Stage 2: Generate configuration items
     await updateProgress(jobId, 'configuration-items', 0, config.totalCIs, 'Generating configuration items...');
@@ -317,17 +322,20 @@ dataGenerationQueue.process('generate-enterprise-data', WORKER_CONCURRENCY, asyn
 
 // Enterprise data generation function
 async function generateEnterpriseData(config) {
-  const { scale, regionsCount, datacentersPerRegion, serversPerDatacenter, applicationsCount, databasesCount } = config;
+  const { scale, regionsCount, datacentersPerRegion, serversPerDatacenter, applicationsCount, databasesCount, clearExisting } = config;
 
   const cis = [];
   const relationships = [];
+
+  // Use unique ID prefix when preserving existing data to avoid conflicts
+  const idSuffix = clearExisting === false ? `-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : '';
 
   // Generate regions
   const regions = [];
   const regionNames = ['US East', 'US West', 'Europe', 'Asia Pacific', 'South America'];
   for (let i = 0; i < regionsCount; i++) {
     const region = {
-      id: `region-${i.toString().padStart(3, '0')}`,
+      id: `region-${i.toString().padStart(3, '0')}${idSuffix}`,
       name: regionNames[i % regionNames.length],
       type: 'Region',
       status: 'OPERATIONAL',
@@ -342,7 +350,7 @@ async function generateEnterpriseData(config) {
   regions.forEach((region, regionIdx) => {
     for (let i = 0; i < datacentersPerRegion; i++) {
       const dc = {
-        id: `dc-${region.id}-${i.toString().padStart(2, '0')}`,
+        id: `dc-${region.id.replace(idSuffix, '')}-${i.toString().padStart(2, '0')}${idSuffix}`,
         name: `${region.name} Datacenter ${i + 1}`,
         type: 'DataCenter',
         status: 'OPERATIONAL',
@@ -367,7 +375,7 @@ async function generateEnterpriseData(config) {
     for (let i = 0; i < serversPerDatacenter; i++) {
       const serverTypes = ['Web', 'App', 'Database', 'Cache', 'Storage', 'Compute'];
       const server = {
-        id: `srv-${dc.id}-${i.toString().padStart(4, '0')}`,
+        id: `srv-${dc.id.replace(idSuffix, '')}-${i.toString().padStart(4, '0')}${idSuffix}`,
         name: `${serverTypes[i % serverTypes.length]} Server ${i + 1} - ${dc.name}`,
         type: 'Server',
         serverType: serverTypes[i % serverTypes.length],
@@ -392,7 +400,7 @@ async function generateEnterpriseData(config) {
   const appTypes = ['WebApplication', 'APIService', 'Microservice', 'BackgroundService', 'MobileApp'];
   for (let i = 0; i < applicationsCount; i++) {
     const app = {
-      id: `app-${i.toString().padStart(5, '0')}`,
+      id: `app-${i.toString().padStart(5, '0')}${idSuffix}`,
       name: `Application ${i + 1}`,
       type: appTypes[i % appTypes.length],
       version: `${Math.floor(Math.random() * 5) + 1}.${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 10)}`,
@@ -421,7 +429,7 @@ async function generateEnterpriseData(config) {
   const dbTypes = ['PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Cassandra', 'Elasticsearch'];
   for (let i = 0; i < databasesCount; i++) {
     const db = {
-      id: `db-${i.toString().padStart(4, '0')}`,
+      id: `db-${i.toString().padStart(4, '0')}${idSuffix}`,
       name: `Database ${i + 1}`,
       type: 'Database',
       dbType: dbTypes[i % dbTypes.length],
@@ -453,7 +461,7 @@ async function generateEnterpriseData(config) {
 
   businessServices.forEach((serviceName, idx) => {
     const service = {
-      id: `biz-svc-${idx.toString().padStart(3, '0')}`,
+      id: `biz-svc-${idx.toString().padStart(3, '0')}${idSuffix}`,
       name: serviceName,
       type: 'BusinessService',
       status: 'OPERATIONAL',
