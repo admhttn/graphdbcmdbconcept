@@ -48,7 +48,7 @@ class GraphAdvantagesDemo {
     async loadDemoScenarios() {
         try {
             window.logInfo('Loading demo scenarios');
-            const response = await fetch('/api/demo/graph-advantage-examples');
+            const response = await fetch('/api/demo/scenarios');
             const data = await response.json();
             this.demoScenarios = data.demoScenarios;
             window.logSuccess(`Loaded ${this.demoScenarios.length} demo scenarios`, { scenarios: this.demoScenarios });

@@ -1,9 +1,46 @@
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
+const { Server } = require('socket.io');
 const uuidv4 = () => crypto.randomUUID();
 
+// Helper function to make internal HTTP requests
+function makeInternalRequest(path, method = 'POST', body = {}) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(body);
+    const options = {
+      hostname: 'localhost',
+      port: PORT,
+      path: path,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (err) {
+          resolve({ message: data });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -46,6 +83,210 @@ let demoData = {
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/demo/scenarios', (req, res) => {
+  const demoScenarios = [
+    {
+      id: 'database-cascade-failure',
+      title: 'Database Cascade Failure Analysis',
+      description: 'Shows impact from database server failure to application services',
+      componentId: 'ci-2',
+      expectedHops: 3,
+      expectedImpact: 'Critical - affects E-Commerce application functionality',
+      revenueAtRisk: '$25,000/hour',
+      graphAdvantage: 'Single graph query vs multiple SQL joins'
+    },
+    {
+      id: 'application-dependency-analysis',
+      title: 'Application Dependency Analysis',
+      description: 'Analyze dependencies of E-Commerce application',
+      componentId: 'ci-4',
+      expectedHops: 2,
+      expectedImpact: 'Medium - affects web server availability',
+      revenueAtRisk: '$10,000/hour',
+      graphAdvantage: 'Immediate graph traversal vs multiple table lookups'
+    }
+  ];
+
+  res.json({
+    demoScenarios,
+    totalScenarios: demoScenarios.length,
+    message: 'Demo scenarios loaded for graph database advantages demonstration'
+  });
+});
+
+// Queue/Job management endpoints for data generation UI
+app.get('/api/queue/scales', (req, res) => {
+  const scales = [
+    { id: 'small', name: 'Small', description: 'Generate ~100 CIs for testing', estimatedTime: '< 1 min', estimatedDuration: '< 1 min', totalCIs: 100, complexity: 'Low' },
+    { id: 'medium', name: 'Medium', description: 'Generate ~500 CIs for demos', estimatedTime: '< 2 min', estimatedDuration: '< 2 min', totalCIs: 500, complexity: 'Medium' },
+    { id: 'large', name: 'Large', description: 'Generate ~1,000 CIs for development', estimatedTime: '< 5 min', estimatedDuration: '< 5 min', totalCIs: 1000, complexity: 'High' },
+    { id: 'enterprise', name: 'Enterprise', description: 'Generate ~5,000 CIs for testing', estimatedTime: '< 10 min', estimatedDuration: '< 10 min', totalCIs: 5000, complexity: 'Very High' }
+  ];
+  res.json(scales);
+});
+
+app.get('/api/queue/stats', (req, res) => {
+  res.json({
+    queue: { pending: 0, active: 0, completed: 1, failed: 0 },
+    workers: { active: 0, total: 0 }
+  });
+});
+
+app.get('/api/jobs', (req, res) => {
+  // Organize jobs by status for the frontend
+  const jobs = {
+    active: jobHistory.filter(job => job.status === 'active'),
+    waiting: jobHistory.filter(job => job.status === 'waiting' || job.status === 'pending'),
+    completed: jobHistory.filter(job => job.status === 'completed'),
+    failed: jobHistory.filter(job => job.status === 'failed')
+  };
+
+  res.json(jobs);
+});
+
+// Job history storage (in memory for demo)
+let jobHistory = [];
+
+app.post('/api/jobs', async (req, res) => {
+  const { scale, customConfig } = req.body;
+  const clearExisting = customConfig?.clearExisting || false;
+  const jobId = `job-${Date.now()}`;
+
+  try {
+    console.log(`Starting data generation job: ${jobId}, scale: ${scale}, clearExisting: ${clearExisting}`);
+
+    let result;
+
+    // Actually call the data generation endpoints using internal HTTP requests
+    if (scale === 'enterprise' || scale === 'large') {
+      console.log('Calling enterprise data generation endpoint...');
+      result = await makeInternalRequest('/api/demo/enterprise-data', 'POST', { clearExisting });
+    } else {
+      console.log('Calling sample data generation endpoint...');
+      result = await makeInternalRequest('/api/demo/sample-data', 'POST', { clearExisting });
+    }
+
+    console.log('Data generation completed:', result);
+
+    // Create job record
+    const job = {
+      jobId,
+      data: {
+        scale,
+        config: {
+          name: `${scale.charAt(0).toUpperCase() + scale.slice(1)} Data Generation`,
+          totalCIs: result.totalCIs || 'Unknown',
+          estimatedDuration: scale === 'enterprise' || scale === 'large' ? '2-3 minutes' : '< 1 minute'
+        }
+      },
+      status: 'completed',
+      progress: 100,
+      message: `${scale.charAt(0).toUpperCase() + scale.slice(1)} data generation completed successfully`,
+      result: {
+        totalCIs: result.totalCIs || 'Unknown',
+        totalEvents: result.totalEvents || 'Unknown'
+      },
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString()
+    };
+
+    // Store in job history
+    jobHistory.unshift(job);
+
+    // Keep only last 10 jobs to prevent memory bloat
+    if (jobHistory.length > 10) {
+      jobHistory = jobHistory.slice(0, 10);
+    }
+
+    // Emit job completion event via Socket.IO
+    io.emit('job-completed', { jobId: job.jobId });
+
+    console.log('Job completed successfully:', job.jobId);
+    res.json(job);
+  } catch (error) {
+    console.error('Data generation failed:', error);
+    const job = {
+      jobId,
+      data: {
+        scale,
+        config: {
+          name: `${scale.charAt(0).toUpperCase() + scale.slice(1)} Data Generation`,
+          totalCIs: 0
+        }
+      },
+      status: 'failed',
+      progress: 0,
+      message: `Data generation failed: ${error.message}`,
+      result: { error: error.message },
+      createdAt: new Date().toISOString(),
+      failedAt: new Date().toISOString()
+    };
+
+    jobHistory.unshift(job);
+
+    // Emit job failure event via Socket.IO
+    io.emit('job-failed', { jobId: job.jobId, error: error.message });
+
+    res.status(500).json(job);
+  }
+});
+
+// Cancel job endpoint
+app.delete('/api/jobs/:jobId', (req, res) => {
+  const { jobId } = req.params;
+
+  console.log(`Cancelling job: ${jobId}`);
+
+  // Since we don't have active jobs in demo mode, just return success
+  // In a real implementation, this would cancel the actual job
+
+  // Emit job cancellation event via Socket.IO
+  io.emit('job-cancelled', { jobId });
+
+  res.json({ message: 'Job cancelled successfully', jobId });
+});
+
+app.get('/debug', (req, res) => {
+  res.json({ message: 'Debug route working' });
+});
+
+// Test route to debug routing issues
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Test route working' });
+});
+
+// Demo scenarios for the frontend (moved here to ensure it works)
+app.get('/api/demo/scenarios', (req, res) => {
+  const demoScenarios = [
+    {
+      id: 'database-cascade-failure',
+      title: 'Database Cascade Failure Analysis',
+      description: 'Shows impact from database server failure to application services',
+      componentId: 'ci-2',
+      expectedHops: 3,
+      expectedImpact: 'Critical - affects E-Commerce application functionality',
+      revenueAtRisk: '$25,000/hour',
+      graphAdvantage: 'Single graph query vs multiple SQL joins'
+    },
+    {
+      id: 'application-dependency-analysis',
+      title: 'Application Dependency Analysis',
+      description: 'Analyze dependencies of E-Commerce application',
+      componentId: 'ci-4',
+      expectedHops: 2,
+      expectedImpact: 'Medium - affects web server availability',
+      revenueAtRisk: '$10,000/hour',
+      graphAdvantage: 'Immediate graph traversal vs multiple table lookups'
+    }
+  ];
+
+  res.json({
+    demoScenarios,
+    totalScenarios: demoScenarios.length,
+    message: 'Demo scenarios loaded for graph database advantages demonstration'
+  });
 });
 
 // Configuration Items API
@@ -266,6 +507,12 @@ app.post('/api/demo/sample-data', (req, res) => {
   res.json({ message: 'Sample data loaded successfully',
             totalCIs: demoData.configurationItems.length,
             totalEvents: demoData.events.length });
+});
+
+
+// Test route to check if routes work here
+app.get('/api/demo/test-here', (req, res) => {
+  res.json({ message: 'Test route at this position working' });
 });
 
 // Demo scenarios API for graph advantages demo
@@ -1239,7 +1486,16 @@ app.use((req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('A user connected to WebSocket');
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected from WebSocket');
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`🔗 Fancy CMDB Concept Demo running on port ${PORT}`);
   console.log(`📊 Application: http://localhost:${PORT}`);
   console.log(`🎯 This is a simplified demo with in-memory data`);

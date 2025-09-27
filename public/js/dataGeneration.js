@@ -9,6 +9,7 @@ class DataGenerationManager {
     }
 
     init() {
+        console.log('DataGenerationManager initializing...');
         this.setupWebSocket();
         this.setupEventListeners();
         this.loadScaleOptions();
@@ -23,8 +24,14 @@ class DataGenerationManager {
     }
 
     setupWebSocket() {
-        // Initialize Socket.IO connection
-        this.socket = io();
+        // Initialize Socket.IO connection if available
+        if (typeof io !== 'undefined') {
+            this.socket = io();
+        } else {
+            console.log('Socket.IO not available, data generation will work without real-time updates');
+            this.socket = null;
+            return;
+        }
 
         this.socket.on('connect', () => {
             console.log('Connected to WebSocket server');
@@ -127,8 +134,15 @@ class DataGenerationManager {
 
     async loadScaleOptions() {
         try {
+            console.log('Loading scale options...');
             const response = await fetch('/api/queue/scales');
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const scales = await response.json();
+            console.log('Scale options loaded:', scales);
 
             const container = document.getElementById('scale-options');
             container.innerHTML = '';
@@ -152,7 +166,18 @@ class DataGenerationManager {
             });
         } catch (error) {
             console.error('Failed to load scale options:', error);
-            this.showError('Failed to load scale options');
+            this.showError(`Failed to load scale options: ${error.message}`);
+
+            // Show a fallback message in the scale-options container
+            const container = document.getElementById('scale-options');
+            if (container) {
+                container.innerHTML = `
+                    <div class="error-message">
+                        <p>Unable to load scale options. Please check the console for details.</p>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
         }
     }
 

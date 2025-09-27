@@ -18,19 +18,28 @@ module.exports = {
   verbose: true,
   projects: [
     {
+      displayName: 'unit',
+      testMatch: ['<rootDir>/tests/unit/**/*.test.js'],
+      testEnvironment: 'node',
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.js']
+    },
+    {
       displayName: 'integration',
       testMatch: ['<rootDir>/tests/integration/**/*.test.js'],
-      testEnvironment: 'node'
+      testEnvironment: 'node',
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.js']
     },
     {
       displayName: 'e2e',
       testMatch: ['<rootDir>/tests/e2e/**/*.test.js'],
-      testEnvironment: 'node'
+      testEnvironment: 'node',
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.js']
     },
     {
       displayName: 'visual',
       testMatch: ['<rootDir>/tests/visual/**/*.test.js'],
-      testEnvironment: 'node'
+      testEnvironment: 'node',
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.js']
     }
   ]
 };
