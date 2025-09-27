@@ -60,6 +60,126 @@ app.get('/api/cmdb/topology', (req, res) => {
   });
 });
 
+// Browse API for paginated CI listing
+app.get('/api/cmdb/browse', (req, res) => {
+  const {
+    search = '',
+    type = '',
+    page = 1,
+    limit = 200,
+    sort = 'name',
+    order = 'asc'
+  } = req.query;
+
+  const pageNum = Math.max(1, parseInt(page, 10));
+  const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10)));
+
+  // Filter items
+  let filteredItems = [...demoData.configurationItems];
+
+  // Apply type filter
+  if (type) {
+    filteredItems = filteredItems.filter(item => item.type === type);
+  }
+
+  // Apply search filter
+  if (search.trim()) {
+    const searchLower = search.toLowerCase();
+    filteredItems = filteredItems.filter(item =>
+      item.name.toLowerCase().includes(searchLower) ||
+      item.type.toLowerCase().includes(searchLower) ||
+      item.id.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Apply sorting
+  filteredItems.sort((a, b) => {
+    let aVal = a[sort] || '';
+    let bVal = b[sort] || '';
+
+    if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = bVal.toLowerCase();
+    }
+
+    if (order === 'desc') {
+      return bVal > aVal ? 1 : bVal < aVal ? -1 : 0;
+    }
+    return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+  });
+
+  // Apply pagination
+  const total = filteredItems.length;
+  const totalPages = Math.ceil(total / limitNum);
+  const offset = (pageNum - 1) * limitNum;
+  const paginatedItems = filteredItems.slice(offset, offset + limitNum);
+
+  // Add relationship counts and format items
+  const items = paginatedItems.map(item => {
+    const relationshipCount = demoData.relationships.filter(rel =>
+      rel.from === item.id || rel.to === item.id
+    ).length;
+
+    return {
+      ...item,
+      relationshipCount,
+      status: item.status || 'unknown',
+      createdAt: new Date(Date.now() - Math.random() * 86400000 * 30).toISOString(),
+      updatedAt: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString()
+    };
+  });
+
+  res.json({
+    items,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
+    },
+    filters: {
+      search,
+      type,
+      sort,
+      order
+    }
+  });
+});
+
+// Get relationship details for a specific CI
+app.get('/api/cmdb/items/:id/relationships', (req, res) => {
+  const { id } = req.params;
+
+  const ci = demoData.configurationItems.find(item => item.id === id);
+  if (!ci) {
+    return res.status(404).json({ error: 'Configuration item not found' });
+  }
+
+  const relationships = demoData.relationships
+    .filter(rel => rel.from === id || rel.to === id)
+    .map(rel => {
+      const isOutgoing = rel.from === id;
+      const relatedId = isOutgoing ? rel.to : rel.from;
+      const relatedItem = demoData.configurationItems.find(item => item.id === relatedId);
+
+      return {
+        relationshipType: rel.type,
+        direction: isOutgoing ? 'outgoing' : 'incoming',
+        relatedItem: relatedItem ? {
+          id: relatedItem.id,
+          name: relatedItem.name,
+          type: relatedItem.type,
+          status: relatedItem.status || 'unknown'
+        } : null
+      };
+    })
+    .filter(rel => rel.relatedItem !== null);
+
+  res.json({ relationships });
+});
+
 // Events API
 app.get('/api/events', (req, res) => {
   res.json(demoData.events);
@@ -146,6 +266,200 @@ app.post('/api/demo/sample-data', (req, res) => {
   res.json({ message: 'Sample data loaded successfully',
             totalCIs: demoData.configurationItems.length,
             totalEvents: demoData.events.length });
+});
+
+// Demo scenarios API for graph advantages demo
+app.get('/api/demo/graph-advantage-examples', (req, res) => {
+  const demoScenarios = [
+    {
+      id: 'database-cascade-failure',
+      title: 'Database Cascade Failure Analysis',
+      description: 'Shows impact from database server failure to application services',
+      componentId: 'ci-2',
+      expectedHops: 3,
+      expectedImpact: 'Critical - affects E-Commerce application functionality',
+      revenueAtRisk: '$25,000/hour',
+      graphAdvantage: 'Single graph query vs multiple SQL joins'
+    },
+    {
+      id: 'application-dependency-analysis',
+      title: 'Application Dependency Analysis',
+      description: 'Analyze dependencies of E-Commerce application',
+      componentId: 'ci-4',
+      expectedHops: 2,
+      expectedImpact: 'High - affects web services and database connections',
+      revenueAtRisk: '$15,000/hour',
+      graphAdvantage: 'Direct relationship traversal vs complex SQL CTEs'
+    },
+    {
+      id: 'load-balancer-impact',
+      title: 'Load Balancer Impact Assessment',
+      description: 'Evaluate impact of load balancer failure on web services',
+      componentId: 'ci-3',
+      expectedHops: 2,
+      expectedImpact: 'Medium - affects web server availability',
+      revenueAtRisk: '$10,000/hour',
+      graphAdvantage: 'Immediate graph traversal vs multiple table lookups'
+    }
+  ];
+
+  res.json({
+    demoScenarios,
+    totalScenarios: demoScenarios.length,
+    message: 'Demo scenarios loaded for graph database advantages demonstration'
+  });
+});
+
+// Demo impact analysis
+app.get('/api/demo/impact/:componentId', (req, res) => {
+  const { componentId } = req.params;
+  const { direction = 'both', depth = 3 } = req.query;
+
+  // Find the component
+  const component = demoData.configurationItems.find(item => item.id === componentId);
+  if (!component) {
+    return res.status(404).json({ error: 'Component not found' });
+  }
+
+  // Simple impact analysis using demo data relationships
+  const findImpacted = (startId, visited = new Set()) => {
+    if (visited.has(startId)) return [];
+    visited.add(startId);
+
+    const impacted = [];
+    demoData.relationships.forEach(rel => {
+      if (rel.from === startId && !visited.has(rel.to)) {
+        const relatedItem = demoData.configurationItems.find(item => item.id === rel.to);
+        if (relatedItem) {
+          impacted.push({
+            id: relatedItem.id,
+            name: relatedItem.name,
+            type: relatedItem.type,
+            criticality: 'medium',
+            distance: 1,
+            relationshipType: rel.type
+          });
+          // Recursively find further impacts (up to depth)
+          if (depth > 1) {
+            impacted.push(...findImpacted(rel.to, new Set(visited)));
+          }
+        }
+      }
+    });
+    return impacted;
+  };
+
+  const impactedItems = findImpacted(componentId);
+
+  // Calculate business impact
+  const revenueImpact = {
+    'ci-2': 25000, // Database Server
+    'ci-4': 15000, // E-Commerce App
+    'ci-3': 10000, // Load Balancer
+    'ci-1': 8000   // Web Server
+  };
+
+  const businessImpact = {
+    totalRevenue: revenueImpact[componentId] || 5000,
+    affectedServices: impactedItems.filter(item => item.type === 'Application').length,
+    criticalComponents: impactedItems.filter(item => item.criticality === 'high').length
+  };
+
+  res.json({
+    sourceComponent: component,
+    impactedItems,
+    businessImpact,
+    analysisDetails: {
+      direction,
+      depth: parseInt(depth),
+      queryTime: '< 1ms',
+      totalAffected: impactedItems.length
+    }
+  });
+});
+
+// Query comparison for graph advantage demo
+app.get('/api/demo/query-comparison/:componentId', (req, res) => {
+  const { componentId } = req.params;
+  const { depth = 3 } = req.query;
+
+  const cypherQuery = `
+MATCH (source:ConfigurationItem {id: $componentId})
+MATCH (source)-[*1..${depth}]-(impacted:ConfigurationItem)
+RETURN DISTINCT impacted.id as id,
+                impacted.name as name,
+                impacted.type as type,
+                shortestPath((source)-[*]-(impacted)) as path
+ORDER BY length(path), impacted.type`;
+
+  const sqlQuery = `
+WITH RECURSIVE dependency_tree AS (
+  -- Base case: start with the source component
+  SELECT id, name, type, 0 as depth, ARRAY[id] as path
+  FROM configuration_items
+  WHERE id = '${componentId}'
+
+  UNION ALL
+
+  -- Recursive case: find all connected components
+  SELECT ci.id, ci.name, ci.type, dt.depth + 1,
+         dt.path || ci.id
+  FROM configuration_items ci
+  JOIN relationships r ON (r.from_id = dt.id OR r.to_id = dt.id)
+  JOIN dependency_tree dt ON (dt.id = r.from_id OR dt.id = r.to_id)
+  WHERE ci.id != dt.id
+    AND NOT ci.id = ANY(dt.path)
+    AND dt.depth < ${depth}
+)
+SELECT DISTINCT id, name, type, depth
+FROM dependency_tree
+WHERE depth > 0
+ORDER BY depth, type;`;
+
+  const comparison = {
+    cypher: {
+      query: cypherQuery.trim(),
+      lines: cypherQuery.trim().split('\n').length,
+      complexity: 'Low',
+      advantages: [
+        'Native graph traversal',
+        'Built-in path finding',
+        'No recursive complexity',
+        'Consistent performance'
+      ]
+    },
+    sql: {
+      query: sqlQuery.trim(),
+      lines: sqlQuery.trim().split('\n').length,
+      complexity: 'High',
+      disadvantages: [
+        'Complex recursive CTEs',
+        'Performance degrades with depth',
+        'Manual path tracking',
+        'Difficult to maintain'
+      ]
+    },
+    advantages: [
+      {
+        title: 'Query Simplicity',
+        description: 'Graph queries are more intuitive and readable'
+      },
+      {
+        title: 'Performance',
+        description: 'Consistent performance regardless of relationship depth'
+      },
+      {
+        title: 'Flexibility',
+        description: 'Easy to change traversal depth with parameter'
+      },
+      {
+        title: 'Maintainability',
+        description: 'Less code to write and maintain'
+      }
+    ]
+  };
+
+  res.json(comparison);
 });
 
 // Enterprise data demo (in-memory simulation)
