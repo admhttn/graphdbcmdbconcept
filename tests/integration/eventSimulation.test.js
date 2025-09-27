@@ -7,9 +7,11 @@ describe('Event Simulation and Clearing Integration Tests', () => {
   let apiClient;
 
   beforeAll(async () => {
+    console.log('global.testConfig:', global.testConfig);
     testServer = new TestServer();
     await testServer.start();
-    apiClient = new APIClient(global.testConfig.testBaseURL);
+    const baseURL = global.testConfig?.testBaseURL || 'http://localhost:3000';
+    apiClient = new APIClient(baseURL);
   });
 
   afterAll(async () => {

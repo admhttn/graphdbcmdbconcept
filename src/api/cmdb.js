@@ -456,6 +456,171 @@ router.get('/topology', async (req, res) => {
   }
 });
 
+// Get paginated Configuration Items with search and filter capabilities for browse view
+router.get('/browse', async (req, res) => {
+  try {
+    await ensureInitialized();
+
+    const {
+      search = '',
+      type = '',
+      page = 1,
+      limit = 200,
+      sort = 'name',
+      order = 'asc'
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10))); // Cap at 500 for safety
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build WHERE clause for filtering
+    let whereClause = 'WHERE 1=1';
+    let params = {
+      limit: neo4j.int(limitNum),
+      offset: neo4j.int(offset)
+    };
+
+    // Add type filter
+    if (type) {
+      whereClause += ' AND ci.type = $type';
+      params.type = type;
+    }
+
+    // Add search filter (search in name and properties)
+    if (search.trim()) {
+      whereClause += ' AND (toLower(ci.name) CONTAINS toLower($search) OR ANY(prop IN keys(ci) WHERE toLower(toString(ci[prop])) CONTAINS toLower($search)))';
+      params.search = search.trim();
+    }
+
+    // Build ORDER BY clause
+    let orderClause = 'ORDER BY ';
+    const validSortFields = ['name', 'type', 'status', 'updatedAt', 'createdAt'];
+    const sortField = validSortFields.includes(sort) ? sort : 'name';
+    const sortOrder = order === 'desc' ? 'DESC' : 'ASC';
+    orderClause += `ci.${sortField} ${sortOrder}`;
+
+    // Get total count for pagination
+    const countQuery = `
+      MATCH (ci:ConfigurationItem)
+      ${whereClause}
+      RETURN count(ci) as total
+    `;
+
+    // Get paginated results with relationship counts
+    const dataQuery = `
+      MATCH (ci:ConfigurationItem)
+      ${whereClause}
+      OPTIONAL MATCH (ci)-[r]-(related:ConfigurationItem)
+      WITH ci, count(DISTINCT r) as relationshipCount
+      ${orderClause}
+      SKIP $offset
+      LIMIT $limit
+      RETURN ci,
+             relationshipCount,
+             ci.id as id,
+             ci.name as name,
+             ci.type as type,
+             ci.status as status,
+             ci.createdAt as createdAt,
+             ci.updatedAt as updatedAt
+    `;
+
+    // Execute both queries in parallel
+    const [countResult, dataResult] = await Promise.all([
+      runReadQuery(countQuery, params),
+      runReadQuery(dataQuery, params)
+    ]);
+
+    // Convert Neo4j integers to regular numbers
+    const convertNeo4jInt = (value) => {
+      if (value && typeof value === 'object' && 'low' in value) {
+        return value.low;
+      }
+      return value || 0;
+    };
+
+    const total = convertNeo4jInt(countResult[0]?.total);
+    const totalPages = Math.ceil(total / limitNum);
+
+    // Format the results
+    const items = dataResult.map(record => ({
+      id: record.id,
+      name: record.name,
+      type: record.type,
+      status: record.status || 'unknown',
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      relationshipCount: convertNeo4jInt(record.relationshipCount),
+      // Include all properties from the CI node
+      ...record.ci.properties
+    }));
+
+    res.json({
+      items,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1
+      },
+      filters: {
+        search,
+        type,
+        sort,
+        order
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching browse data:', error);
+    res.status(500).json({ error: 'Failed to fetch configuration items for browse view' });
+  }
+});
+
+// Get relationship details for a specific CI (for expandable relationship view)
+router.get('/items/:id/relationships', async (req, res) => {
+  try {
+    await ensureInitialized();
+
+    const { id } = req.params;
+
+    const cypher = `
+      MATCH (ci:ConfigurationItem {id: $id})
+      OPTIONAL MATCH (ci)-[r]-(related:ConfigurationItem)
+      RETURN collect(DISTINCT {
+        relationshipType: type(r),
+        direction: CASE
+          WHEN startNode(r) = ci THEN 'outgoing'
+          ELSE 'incoming'
+        END,
+        relatedItem: {
+          id: related.id,
+          name: related.name,
+          type: related.type,
+          status: coalesce(related.status, 'unknown')
+        }
+      }) as relationships
+    `;
+
+    const result = await runReadQuery(cypher, { id });
+
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Configuration item not found' });
+    }
+
+    // Filter out null relationships (from OPTIONAL MATCH)
+    const relationships = result[0].relationships.filter(rel => rel.relatedItem.id !== null);
+
+    res.json({ relationships });
+  } catch (error) {
+    console.error('Error fetching CI relationships:', error);
+    res.status(500).json({ error: 'Failed to fetch configuration item relationships' });
+  }
+});
+
 // Get impact analysis for a CI
 router.get('/impact/:id', async (req, res) => {
   try {

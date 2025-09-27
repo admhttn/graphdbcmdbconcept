@@ -108,6 +108,21 @@ class CMDBApp {
                     }
                 }
                 break;
+            case 'browse':
+                // Initialize browse functionality if not already done
+                if (!window.cmdbBrowser && window.CMDBBrowser) {
+                    window.cmdbBrowser = new window.CMDBBrowser();
+                    if (window.logInfo) {
+                        window.logInfo('CMDB Browser initialized');
+                    }
+                } else if (window.cmdbBrowser) {
+                    // Refresh data when returning to tab
+                    window.cmdbBrowser.loadData();
+                    if (window.logInfo) {
+                        window.logInfo('CMDB Browser data refreshed');
+                    }
+                }
+                break;
             case 'events':
                 this.loadEvents();
                 break;

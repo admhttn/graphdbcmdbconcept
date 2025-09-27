@@ -1,11 +1,12 @@
-const { beforeAll, afterAll, beforeEach, afterEach } = require('@jest/globals');
+// Jest globals are already available in the test environment
 
 // Global test setup
 global.testConfig = {
   baseURL: process.env.TEST_BASE_URL || 'http://localhost:3000',
+  testBaseURL: process.env.TEST_BASE_URL || 'http://localhost:3000', // For backward compatibility
   neo4jURI: process.env.TEST_NEO4J_URI || 'bolt://localhost:7687',
   neo4jUser: process.env.TEST_NEO4J_USER || 'neo4j',
-  neo4jPassword: process.env.TEST_NEO4J_PASSWORD || 'CHANGE_ME_INSECURE_DEFAULT',
+  neo4jPassword: process.env.TEST_NEO4J_PASSWORD || 'password',
   redisURL: process.env.TEST_REDIS_URL || 'redis://localhost:6379',
   timeout: {
     short: 5000,
