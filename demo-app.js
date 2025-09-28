@@ -557,7 +557,7 @@ app.get('/api/demo/graph-advantage-examples', (req, res) => {
   });
 });
 
-// Demo impact analysis
+// Demo impact analysis (original endpoint)
 app.get('/api/demo/impact/:componentId', (req, res) => {
   const { componentId } = req.params;
   const { direction = 'both', depth = 3 } = req.query;
@@ -625,6 +625,107 @@ app.get('/api/demo/impact/:componentId', (req, res) => {
   });
 });
 
+// Demo impact analysis (frontend-expected endpoint)
+app.get('/api/demo/impact-analysis/:componentId', (req, res) => {
+  const { componentId } = req.params;
+  const { maxDepth = 3, direction = 'downstream' } = req.query;
+
+  // Find the component
+  const component = demoData.configurationItems.find(item => item.id === componentId);
+  if (!component) {
+    return res.status(404).json({ error: 'Component not found' });
+  }
+
+  // Enhanced impact analysis with proper data structure for frontend
+  const findImpacted = (startId, currentDepth = 0, visited = new Set()) => {
+    if (currentDepth >= parseInt(maxDepth) || visited.has(startId)) return [];
+    visited.add(startId);
+
+    const impacted = [];
+    demoData.relationships.forEach(rel => {
+      let targetId = null;
+      let relationshipType = rel.type;
+
+      if (direction === 'downstream' && rel.from === startId) {
+        targetId = rel.to;
+      } else if (direction === 'upstream' && rel.to === startId) {
+        targetId = rel.from;
+      } else if (direction === 'both' && (rel.from === startId || rel.to === startId)) {
+        targetId = rel.from === startId ? rel.to : rel.from;
+      }
+
+      if (targetId && !visited.has(targetId)) {
+        const relatedItem = demoData.configurationItems.find(item => item.id === targetId);
+        if (relatedItem) {
+          const hopDistance = currentDepth + 1;
+          const riskLevel = hopDistance === 1 ? 'HIGH_RISK' :
+                           hopDistance === 2 ? 'MEDIUM_RISK' : 'LOW_RISK';
+
+          const impactItem = {
+            componentId: relatedItem.id,
+            componentName: relatedItem.name,
+            componentType: relatedItem.type,
+            hopDistance,
+            riskLevel,
+            impactScore: Math.round((100 - hopDistance * 20) * Math.random()),
+            dependencyPath: [
+              { id: startId, name: component.name, type: component.type },
+              { id: relatedItem.id, name: relatedItem.name, type: relatedItem.type }
+            ],
+            relationshipType,
+            affectedBusinessService: relatedItem.type === 'BusinessService' ? relatedItem.name :
+                                   relatedItem.type.includes('Application') ? 'E-Commerce Platform' : null,
+            hourlyRevenueAtRisk: relatedItem.type === 'BusinessService' ? 25000 :
+                               relatedItem.type.includes('Application') ? 15000 :
+                               relatedItem.type === 'Database' ? 20000 : 5000
+          };
+
+          impacted.push(impactItem);
+
+          // Recursively find further impacts
+          const furtherImpacts = findImpacted(targetId, currentDepth + 1, new Set(visited));
+          impacted.push(...furtherImpacts);
+        }
+      }
+    });
+    return impacted;
+  };
+
+  const impactDetails = findImpacted(componentId);
+
+  // Calculate summary metrics
+  const totalAffectedComponents = impactDetails.length;
+  const criticalImpacts = impactDetails.filter(item => item.riskLevel === 'HIGH_RISK').length;
+  const totalHourlyRevenueAtRisk = impactDetails.reduce((sum, item) => sum + item.hourlyRevenueAtRisk, 0);
+  const executionTimeMs = Math.floor(Math.random() * 50) + 10; // Simulate realistic query time
+
+  // Graph advantage information
+  const graphAdvantage = {
+    cypherComplexity: 'Simple',
+    sqlEquivalent: 'Complex recursive CTEs',
+    performanceAdvantage: `${executionTimeMs}ms vs 500-2000ms in SQL`
+  };
+
+  const impactSummary = {
+    totalAffectedComponents,
+    criticalImpacts,
+    totalHourlyRevenueAtRisk,
+    executionTimeMs
+  };
+
+  res.json({
+    impactSummary,
+    impactDetails,
+    graphAdvantage,
+    analysisMetadata: {
+      componentId,
+      direction,
+      maxDepth: parseInt(maxDepth),
+      analysisTimestamp: new Date().toISOString()
+    }
+  });
+});
+
 // Query comparison for graph advantage demo
 app.get('/api/demo/query-comparison/:componentId', (req, res) => {
   const { componentId } = req.params;
@@ -666,7 +767,7 @@ ORDER BY depth, type;`;
   const comparison = {
     cypher: {
       query: cypherQuery.trim(),
-      lines: cypherQuery.trim().split('\n').length,
+      linesOfCode: cypherQuery.trim().split('\n').length,
       complexity: 'Low',
       advantages: [
         'Native graph traversal',
@@ -677,7 +778,7 @@ ORDER BY depth, type;`;
     },
     sql: {
       query: sqlQuery.trim(),
-      lines: sqlQuery.trim().split('\n').length,
+      linesOfCode: sqlQuery.trim().split('\n').length,
       complexity: 'High',
       disadvantages: [
         'Complex recursive CTEs',
@@ -688,20 +789,24 @@ ORDER BY depth, type;`;
     },
     advantages: [
       {
-        title: 'Query Simplicity',
-        description: 'Graph queries are more intuitive and readable'
+        aspect: 'Query Simplicity',
+        cypher: 'Intuitive graph traversal with MATCH patterns',
+        sql: 'Complex recursive CTEs with manual path tracking'
       },
       {
-        title: 'Performance',
-        description: 'Consistent performance regardless of relationship depth'
+        aspect: 'Performance',
+        cypher: 'Consistent performance regardless of depth',
+        sql: 'Performance degrades exponentially with depth'
       },
       {
-        title: 'Flexibility',
-        description: 'Easy to change traversal depth with parameter'
+        aspect: 'Flexibility',
+        cypher: 'Easy to change traversal depth with parameter',
+        sql: 'Requires query rewriting for different depths'
       },
       {
-        title: 'Maintainability',
-        description: 'Less code to write and maintain'
+        aspect: 'Maintainability',
+        cypher: 'Concise, readable graph patterns',
+        sql: 'Verbose, complex recursive logic'
       }
     ]
   };

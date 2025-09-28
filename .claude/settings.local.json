@@ -11,7 +11,8 @@
       "Bash(find:*)",
       "Bash(npm test:*)",
       "Bash(npm run test:coverage:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
