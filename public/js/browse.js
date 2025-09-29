@@ -14,6 +14,9 @@ class CMDBBrowser {
         this.searchDebounceTimer = null;
         this.searchDebounceDelay = 300;
 
+        // Initialize CI Detail Modal
+        this.ciDetailModal = null;
+
         this.init();
     }
 
@@ -21,8 +24,25 @@ class CMDBBrowser {
         this.bindEvents();
         this.loadData();
 
+        // Initialize CI Detail Modal when available
+        this.initializeCIDetailModal();
+
         if (window.logInfo) {
             window.logInfo('CMDB Browser initialized');
+        }
+    }
+
+    initializeCIDetailModal() {
+        // Initialize the modal, but only if the CIDetailModal class is available
+        if (window.CIDetailModal) {
+            this.ciDetailModal = new window.CIDetailModal();
+        } else {
+            // Try again after a short delay if the class isn't loaded yet
+            setTimeout(() => {
+                if (window.CIDetailModal && !this.ciDetailModal) {
+                    this.ciDetailModal = new window.CIDetailModal();
+                }
+            }, 100);
         }
     }
 
@@ -419,14 +439,18 @@ class CMDBBrowser {
     }
 
     viewItem(itemId) {
-        // This could open a modal or navigate to a detail view
-        // For now, let's just log it and show a simple alert
         if (window.logInfo) {
             window.logInfo('Viewing CI details', { itemId });
         }
 
-        // You could implement a detail modal here
-        alert(`View details for item: ${itemId}\n\nThis could open a detailed view or modal.`);
+        // Use the CI Detail Modal if available
+        if (this.ciDetailModal) {
+            this.ciDetailModal.open(itemId);
+        } else {
+            // Fallback if modal is not available
+            console.warn('CI Detail Modal not available, falling back to basic alert');
+            alert(`View details for item: ${itemId}\n\nCI Detail Modal is not loaded.`);
+        }
     }
 
     updatePagination() {
