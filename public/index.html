@@ -27,6 +27,60 @@
         <main>
             <!-- Overview Tab -->
             <div id="overview" class="tab-content active">
+                <!-- System Status Section -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2>🔧 System Status</h2>
+                        <div class="section-actions">
+                            <button id="refresh-system-status" class="secondary-btn">Refresh Status</button>
+                        </div>
+                    </div>
+
+                    <!-- Environment Info -->
+                    <div class="environment-status">
+                        <div class="environment-card" id="environment-info">
+                            <div class="environment-header">
+                                <span class="environment-mode" id="env-mode">Unknown</span>
+                                <span class="environment-status-indicator" id="env-status">●</span>
+                            </div>
+                            <div class="environment-details">
+                                <div class="env-detail">
+                                    <span class="env-label">Version:</span>
+                                    <span class="env-value" id="app-version">-</span>
+                                </div>
+                                <div class="env-detail">
+                                    <span class="env-label">Runtime:</span>
+                                    <span class="env-value" id="runtime-info">-</span>
+                                </div>
+                                <div class="env-detail">
+                                    <span class="env-label">Uptime:</span>
+                                    <span class="env-value" id="system-uptime">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Services Grid -->
+                    <div class="services-grid" id="services-grid">
+                        <div class="loading">Loading system status...</div>
+                    </div>
+
+                    <!-- Performance Summary -->
+                    <div class="performance-summary" id="performance-summary" style="display: none;">
+                        <h4>Performance</h4>
+                        <div class="perf-metrics">
+                            <div class="perf-item">
+                                <span class="perf-label">Response Time:</span>
+                                <span class="perf-value" id="perf-response-time">-</span>
+                            </div>
+                            <div class="perf-item">
+                                <span class="perf-label">Memory Usage:</span>
+                                <span class="perf-value" id="perf-memory">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="section">
                     <div class="section-header">
                         <h2>📊 Database Statistics</h2>
@@ -555,6 +609,103 @@
         </main>
     </div>
 
+    <!-- CI Detail Modal -->
+    <div id="ci-detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="ci-detail-title">Configuration Item Details</h2>
+                <div class="modal-actions">
+                    <button id="refresh-ci-detail" class="secondary-btn">Refresh</button>
+                    <button id="close-ci-detail" class="close-btn">&times;</button>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div class="ci-detail-loading">
+                    <div class="loading">Loading configuration item details...</div>
+                </div>
+
+                <div class="ci-detail-content" style="display: none;">
+                    <!-- CI Basic Information -->
+                    <div class="detail-section">
+                        <h3>Basic Information</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Name:</label>
+                                <span id="detail-name">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>ID:</label>
+                                <span id="detail-id" class="detail-id">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Type:</label>
+                                <span id="detail-type" class="ci-type">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Status:</label>
+                                <span id="detail-status" class="ci-status">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Created:</label>
+                                <span id="detail-created">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Updated:</label>
+                                <span id="detail-updated">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CI Properties -->
+                    <div class="detail-section">
+                        <h3>Properties</h3>
+                        <div id="detail-properties" class="properties-list">
+                            <!-- Properties will be populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Relationships Section -->
+                    <div class="detail-section">
+                        <div class="section-header">
+                            <h3>Relationships</h3>
+                            <div class="relationship-controls">
+                                <button id="refresh-relationships" class="secondary-btn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="detail-relationships" class="relationships-section">
+                            <!-- Relationships will be populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Topology Visualization -->
+                    <div class="detail-section">
+                        <div class="section-header">
+                            <h3>Relationship Diagram</h3>
+                            <div class="topology-controls">
+                                <label for="topology-depth">Depth:</label>
+                                <select id="topology-depth">
+                                    <option value="1">1 hop</option>
+                                    <option value="2" selected>2 hops</option>
+                                    <option value="3">3 hops</option>
+                                </select>
+                                <button id="refresh-topology" class="secondary-btn">Refresh</button>
+                                <button id="reset-topology-zoom" class="secondary-btn">Reset Zoom</button>
+                            </div>
+                        </div>
+                        <div id="detail-topology" class="detail-topology">
+                            <div class="loading">Loading relationship diagram...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ci-detail-error" style="display: none;">
+                    <div class="error">Failed to load configuration item details</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Debug Logger Terminal -->
     <div id="debug-logger" class="debug-logger hidden">
         <div class="debug-header">
@@ -580,6 +731,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/debug-logger.js"></script>
+    <script src="js/ci-detail-modal.js"></script>
     <script src="js/browse.js"></script>
     <script src="js/app.js"></script>
     <script src="js/topology-simple.js"></script>

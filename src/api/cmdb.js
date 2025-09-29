@@ -666,4 +666,182 @@ router.get('/impact/:id', async (req, res) => {
   }
 });
 
+// Get services status and environment information
+router.get('/services/status', async (req, res) => {
+  try {
+    const startTime = Date.now();
+
+    // Detect environment mode
+    const environmentMode = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+    const isDockerEnvironment = !!process.env.RUNNING_IN_DOCKER;
+    const isDemoMode = process.argv.includes('demo-app.js');
+
+    // Get application info
+    const packageInfo = require('../../package.json');
+    const appInfo = {
+      name: packageInfo.name,
+      version: packageInfo.version,
+      mode: isDemoMode ? 'demo' : (environmentMode === 'production' ? 'production' : 'development'),
+      startTime: process.uptime(),
+      nodeVersion: process.version,
+      platform: process.platform,
+      pid: process.pid,
+      memory: process.memoryUsage(),
+      isDocker: isDockerEnvironment
+    };
+
+    // Initialize services status
+    const services = [];
+
+    // Neo4j Service Status
+    let neo4jStatus = 'unknown';
+    let neo4jInfo = {};
+    try {
+      const neo4jService = require('../services/neo4j');
+      const testQuery = 'RETURN 1 as test';
+      const result = await neo4jService.runReadQuery(testQuery);
+      if (result && result.length > 0) {
+        neo4jStatus = 'healthy';
+
+        // Get Neo4j version and database info
+        try {
+          const versionResult = await neo4jService.runReadQuery('CALL dbms.components() YIELD name, versions, edition');
+          const dbInfoResult = await neo4jService.runReadQuery('CALL db.info()');
+
+          neo4jInfo = {
+            version: versionResult[0]?.versions?.[0] || 'Unknown',
+            edition: versionResult[0]?.edition || 'Community',
+            databaseName: dbInfoResult[0]?.name || 'neo4j',
+            storeSize: dbInfoResult[0]?.storeSize || 'Unknown'
+          };
+        } catch (infoError) {
+          console.warn('Could not get Neo4j detailed info:', infoError.message);
+        }
+      }
+    } catch (error) {
+      neo4jStatus = 'error';
+      neo4jInfo = { error: error.message };
+    }
+
+    services.push({
+      name: 'Neo4j Database',
+      type: 'database',
+      status: neo4jStatus,
+      url: process.env.NEO4J_URI || 'bolt://localhost:7687',
+      browserUrl: 'http://localhost:7474',
+      info: neo4jInfo,
+      required: true
+    });
+
+    // Redis Service Status (if configured)
+    let redisStatus = 'not-configured';
+    let redisInfo = {};
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      try {
+        // Try to connect to Redis if available
+        const redis = require('redis');
+        const client = redis.createClient({ url: redisUrl });
+        await client.connect();
+        await client.ping();
+        redisStatus = 'healthy';
+        redisInfo = {
+          url: redisUrl,
+          connected: true
+        };
+        await client.disconnect();
+      } catch (error) {
+        redisStatus = 'error';
+        redisInfo = { error: error.message };
+      }
+
+      services.push({
+        name: 'Redis Cache',
+        type: 'cache',
+        status: redisStatus,
+        url: redisUrl,
+        info: redisInfo,
+        required: false
+      });
+    }
+
+    // Socket.IO Status
+    const socketStatus = global.io ? 'healthy' : 'not-initialized';
+    services.push({
+      name: 'WebSocket Server',
+      type: 'websocket',
+      status: socketStatus,
+      info: {
+        connectedClients: global.io?.engine?.clientsCount || 0,
+        initialized: !!global.io
+      },
+      required: false
+    });
+
+    // API Service (self)
+    services.push({
+      name: 'CMDB API',
+      type: 'api',
+      status: 'healthy',
+      url: `http://localhost:${process.env.PORT || 3000}`,
+      info: {
+        port: process.env.PORT || 3000,
+        routes: ['cmdb', 'events', 'correlation', 'demo'],
+        uptime: Math.floor(process.uptime())
+      },
+      required: true
+    });
+
+    // Overall system health
+    const healthyServices = services.filter(s => s.status === 'healthy').length;
+    const requiredServices = services.filter(s => s.required).length;
+    const requiredHealthy = services.filter(s => s.required && s.status === 'healthy').length;
+
+    const overallStatus = requiredHealthy === requiredServices ? 'healthy' : 'degraded';
+
+    const responseTime = Date.now() - startTime;
+
+    res.json({
+      overall: {
+        status: overallStatus,
+        mode: appInfo.mode,
+        environment: environmentMode,
+        isDocker: isDockerEnvironment,
+        responseTime: `${responseTime}ms`,
+        timestamp: new Date().toISOString()
+      },
+      application: appInfo,
+      services,
+      summary: {
+        total: services.length,
+        healthy: healthyServices,
+        required: requiredServices,
+        requiredHealthy,
+        optional: services.length - requiredServices
+      },
+      performance: {
+        responseTime,
+        uptime: Math.floor(process.uptime()),
+        memory: {
+          used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+          external: Math.round(process.memoryUsage().external / 1024 / 1024)
+        },
+        cpu: process.cpuUsage()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting services status:', error);
+    res.status(500).json({
+      error: 'Failed to get services status',
+      details: error.message,
+      overall: {
+        status: 'error',
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
 module.exports = router;

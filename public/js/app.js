@@ -73,6 +73,11 @@ class CMDBApp {
         document.getElementById('clear-database')?.addEventListener('click', () => {
             this.clearDatabase();
         });
+
+        // System status button
+        document.getElementById('refresh-system-status')?.addEventListener('click', () => {
+            this.loadSystemStatus();
+        });
     }
 
     switchTab(tabName) {
@@ -143,6 +148,9 @@ class CMDBApp {
     async loadOverview() {
         try {
             const startTime = Date.now();
+
+            // Load system status first
+            await this.loadSystemStatus();
 
             // Load comprehensive database statistics
             const response = await fetch('/api/cmdb/database/stats');
@@ -536,6 +544,192 @@ class CMDBApp {
 
             // Refresh overview even on error to show current state
             this.loadOverview();
+        }
+    }
+
+    async loadSystemStatus() {
+        try {
+            if (window.logInfo) {
+                window.logInfo('Loading system status');
+            }
+
+            const response = await fetch('/api/cmdb/services/status');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const statusData = await response.json();
+            this.renderSystemStatus(statusData);
+
+            if (window.logSuccess) {
+                window.logSuccess('System status loaded successfully', {
+                    mode: statusData.overall?.mode,
+                    status: statusData.overall?.status,
+                    services: statusData.summary?.total
+                });
+            }
+
+        } catch (error) {
+            console.error('Error loading system status:', error);
+            this.renderSystemStatusError(error.message);
+
+            if (window.logError) {
+                window.logError('Failed to load system status', { error: error.message });
+            }
+        }
+    }
+
+    renderSystemStatus(data) {
+        // Update environment info
+        const envMode = document.getElementById('env-mode');
+        const envStatus = document.getElementById('env-status');
+        const appVersion = document.getElementById('app-version');
+        const runtimeInfo = document.getElementById('runtime-info');
+        const systemUptime = document.getElementById('system-uptime');
+
+        if (envMode) {
+            envMode.textContent = data.overall?.mode?.toUpperCase() || 'UNKNOWN';
+            envMode.className = `environment-mode mode-${data.overall?.mode || 'unknown'}`;
+        }
+
+        if (envStatus) {
+            envStatus.className = `environment-status-indicator ${data.overall?.status || 'unknown'}`;
+        }
+
+        if (appVersion) {
+            appVersion.textContent = `${data.application?.name || 'CMDB'} v${data.application?.version || 'Unknown'}`;
+        }
+
+        if (runtimeInfo) {
+            const runtime = `${data.application?.nodeVersion || 'Unknown'} (${data.application?.platform || 'Unknown'})`;
+            runtimeInfo.textContent = runtime;
+        }
+
+        if (systemUptime) {
+            const uptimeSeconds = data.performance?.uptime || 0;
+            const hours = Math.floor(uptimeSeconds / 3600);
+            const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+            systemUptime.textContent = `${hours}h ${minutes}m`;
+        }
+
+        // Render services
+        this.renderServices(data.services || []);
+
+        // Update performance summary
+        this.renderPerformanceSummary(data.performance || {}, data.overall?.responseTime);
+    }
+
+    renderServices(services) {
+        const servicesGrid = document.getElementById('services-grid');
+        if (!servicesGrid) return;
+
+        servicesGrid.innerHTML = services.map(service => `
+            <div class="service-card">
+                <div class="service-header">
+                    <div>
+                        <div class="service-type">${service.type}</div>
+                        <div class="service-name">${service.name}</div>
+                    </div>
+                    <span class="service-status ${service.status}">${service.status}</span>
+                </div>
+                <div class="service-info">
+                    ${service.url && service.url !== 'in-memory' ? `
+                        <div class="service-info-item">
+                            <span class="service-info-label">URL:</span>
+                            <a href="${service.browserUrl || service.url}" target="_blank" class="service-url">
+                                ${service.url}
+                            </a>
+                        </div>
+                    ` : service.url === 'in-memory' ? `
+                        <div class="service-info-item">
+                            <span class="service-info-label">Storage:</span>
+                            <span class="service-info-value">In-Memory</span>
+                        </div>
+                    ` : ''}
+                    ${this.renderServiceInfo(service.info)}
+                </div>
+                <div class="service-required ${service.required ? 'required' : 'optional'}">
+                    ${service.required ? '● Required Service' : '○ Optional Service'}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderServiceInfo(info) {
+        if (!info || typeof info !== 'object') return '';
+
+        return Object.entries(info)
+            .filter(([key, value]) => key !== 'error' && value !== null && value !== undefined)
+            .map(([key, value]) => {
+                const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                let displayValue = value;
+
+                // Format specific values
+                if (typeof value === 'object' && value !== null) {
+                    displayValue = JSON.stringify(value);
+                } else if (key.includes('Size') || key.includes('size')) {
+                    displayValue = value;
+                } else if (key.includes('Count') || key.includes('count') || typeof value === 'number') {
+                    displayValue = value.toLocaleString ? value.toLocaleString() : value;
+                }
+
+                return `
+                    <div class="service-info-item">
+                        <span class="service-info-label">${label}:</span>
+                        <span class="service-info-value">${displayValue}</span>
+                    </div>
+                `;
+            }).join('');
+    }
+
+    renderPerformanceSummary(performance, responseTime) {
+        const performanceSummary = document.getElementById('performance-summary');
+        const perfResponseTime = document.getElementById('perf-response-time');
+        const perfMemory = document.getElementById('perf-memory');
+
+        if (performanceSummary) {
+            performanceSummary.style.display = 'block';
+        }
+
+        if (perfResponseTime) {
+            perfResponseTime.textContent = responseTime || `${performance.responseTime || 0}ms`;
+        }
+
+        if (perfMemory) {
+            const memoryUsed = performance.memory?.used || 0;
+            const memoryTotal = performance.memory?.total || 0;
+            perfMemory.textContent = `${memoryUsed}MB / ${memoryTotal}MB`;
+        }
+    }
+
+    renderSystemStatusError(errorMessage) {
+        const servicesGrid = document.getElementById('services-grid');
+        const envMode = document.getElementById('env-mode');
+        const envStatus = document.getElementById('env-status');
+
+        if (envMode) {
+            envMode.textContent = 'ERROR';
+        }
+
+        if (envStatus) {
+            envStatus.className = 'environment-status-indicator error';
+        }
+
+        if (servicesGrid) {
+            servicesGrid.innerHTML = `
+                <div class="service-card">
+                    <div class="service-header">
+                        <div class="service-name">System Status</div>
+                        <span class="service-status error">Error</span>
+                    </div>
+                    <div class="service-info">
+                        <div class="service-info-item">
+                            <span class="service-info-label">Error:</span>
+                            <span class="service-info-value">${errorMessage}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
     }
 }

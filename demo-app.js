@@ -294,6 +294,41 @@ app.get('/api/cmdb/items', (req, res) => {
   res.json(demoData.configurationItems);
 });
 
+// Get specific Configuration Item with relationships
+app.get('/api/cmdb/items/:id', (req, res) => {
+  const { id } = req.params;
+
+  const ci = demoData.configurationItems.find(item => item.id === id);
+  if (!ci) {
+    return res.status(404).json({ error: 'Configuration item not found' });
+  }
+
+  // Find relationships for this CI
+  const relationships = demoData.relationships
+    .filter(rel => rel.from === id || rel.to === id)
+    .map(rel => {
+      const isOutgoing = rel.from === id;
+      const relatedId = isOutgoing ? rel.to : rel.from;
+      const relatedItem = demoData.configurationItems.find(item => item.id === relatedId);
+
+      return {
+        relationshipType: rel.type,
+        direction: isOutgoing ? 'outgoing' : 'incoming',
+        relatedItem: relatedItem ? {
+          id: relatedItem.id,
+          name: relatedItem.name,
+          type: relatedItem.type
+        } : null
+      };
+    })
+    .filter(rel => rel.relatedItem !== null);
+
+  res.json({
+    ...ci,
+    relationships
+  });
+});
+
 app.get('/api/cmdb/topology', (req, res) => {
   res.json({
     nodes: demoData.configurationItems,
@@ -1584,6 +1619,114 @@ app.get('/', (req, res) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Services status endpoint
+app.get('/api/cmdb/services/status', (req, res) => {
+  const startTime = Date.now();
+
+  // Get application info
+  const packageInfo = require('./package.json');
+  const appInfo = {
+    name: packageInfo.name,
+    version: packageInfo.version,
+    mode: 'demo',
+    startTime: process.uptime(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    pid: process.pid,
+    memory: process.memoryUsage(),
+    isDocker: false
+  };
+
+  // Demo mode services
+  const services = [
+    {
+      name: 'Demo Data Store',
+      type: 'database',
+      status: 'healthy',
+      url: 'in-memory',
+      info: {
+        type: 'In-Memory JavaScript Objects',
+        dataSize: `${JSON.stringify(demoData).length} bytes`,
+        configItems: demoData.configurationItems.length,
+        relationships: demoData.relationships.length,
+        events: demoData.events.length
+      },
+      required: true
+    },
+    {
+      name: 'WebSocket Server',
+      type: 'websocket',
+      status: global.io ? 'healthy' : 'not-initialized',
+      info: {
+        connectedClients: global.io?.engine?.clientsCount || 0,
+        initialized: !!global.io
+      },
+      required: false
+    },
+    {
+      name: 'Demo API Server',
+      type: 'api',
+      status: 'healthy',
+      url: `http://localhost:${PORT}`,
+      info: {
+        port: PORT,
+        routes: ['cmdb', 'demo', 'events'],
+        uptime: Math.floor(process.uptime()),
+        mode: 'demo'
+      },
+      required: true
+    }
+  ];
+
+  // Overall system health
+  const healthyServices = services.filter(s => s.status === 'healthy').length;
+  const requiredServices = services.filter(s => s.required).length;
+  const requiredHealthy = services.filter(s => s.required && s.status === 'healthy').length;
+
+  const overallStatus = requiredHealthy === requiredServices ? 'healthy' : 'degraded';
+  const responseTime = Date.now() - startTime;
+
+  res.json({
+    overall: {
+      status: overallStatus,
+      mode: 'demo',
+      environment: 'demo-mode',
+      isDocker: false,
+      responseTime: `${responseTime}ms`,
+      timestamp: new Date().toISOString()
+    },
+    application: appInfo,
+    services,
+    summary: {
+      total: services.length,
+      healthy: healthyServices,
+      required: requiredServices,
+      requiredHealthy,
+      optional: services.length - requiredServices
+    },
+    performance: {
+      responseTime,
+      uptime: Math.floor(process.uptime()),
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+        external: Math.round(process.memoryUsage().external / 1024 / 1024)
+      },
+      cpu: process.cpuUsage()
+    },
+    demoInfo: {
+      dataGenerated: new Date().toISOString(),
+      features: [
+        'In-memory data storage',
+        'Simulated Neo4j responses',
+        'Demo topology visualization',
+        'Sample events and correlations',
+        'No external dependencies'
+      ]
+    }
+  });
 });
 
 app.use((req, res) => {
