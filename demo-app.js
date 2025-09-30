@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 const { Server } = require('socket.io');
+const { runWriteQuery, runReadQuery } = require('./src/services/neo4j');
 const uuidv4 = () => crypto.randomUUID();
 
 // Helper function to make internal HTTP requests
@@ -1564,7 +1565,7 @@ app.post('/api/demo/start-event-stream', (req, res) => {
     { message: 'Application error rate increased', severity: 'HIGH', type: 'APPLICATION' }
   ];
 
-  eventStreamInterval = setInterval(() => {
+  eventStreamInterval = setInterval(async () => {
     const template = streamTemplates[Math.floor(Math.random() * streamTemplates.length)];
     const randomCI = demoData.configurationItems[Math.floor(Math.random() * demoData.configurationItems.length)];
 
@@ -1582,11 +1583,50 @@ app.post('/api/demo/start-event-stream', (req, res) => {
       })
     };
 
+    // Add to in-memory storage for demo mode
     demoData.events.unshift(streamEvent);
 
     // Keep only last 500 events to prevent memory issues
     if (demoData.events.length > 500) {
       demoData.events = demoData.events.slice(0, 500);
+    }
+
+    // ALSO create event in Neo4j database for correlation analysis
+    try {
+      // Find a random CI in Neo4j database
+      const ciResult = await runReadQuery(`
+        MATCH (ci:ConfigurationItem)
+        RETURN ci.id as id
+        ORDER BY rand()
+        LIMIT 1
+      `);
+
+      if (ciResult.length > 0) {
+        const neo4jCiId = ciResult[0].id;
+
+        // Create event in Neo4j with AFFECTS relationship
+        await runWriteQuery(`
+          MATCH (ci:ConfigurationItem {id: $ciId})
+          CREATE (e:Event $eventData)
+          CREATE (e)-[:AFFECTS]->(ci)
+        `, {
+          eventData: {
+            id: streamEvent.id,
+            source: `streaming.${template.type.toLowerCase()}`,
+            message: streamEvent.message,
+            severity: streamEvent.severity,
+            eventType: streamEvent.eventType,
+            timestamp: streamEvent.timestamp,
+            status: streamEvent.status,
+            correlationScore: 0.0,
+            metadata: streamEvent.metadata
+          },
+          ciId: neo4jCiId
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create Neo4j event during streaming:', error);
+      // Continue with in-memory operation even if Neo4j fails
     }
   }, intervalSeconds * 1000);
 

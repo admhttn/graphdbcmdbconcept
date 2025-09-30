@@ -9,9 +9,8 @@ async function createDemoEnterpriseData() {
     try {
         // Clear existing data in smaller batches to avoid memory issues
         console.log('Clearing existing data...');
-        await runWriteQuery('MATCH (n:Event) DELETE n');
-        await runWriteQuery('MATCH ()-[r]-() DELETE r');
-        await runWriteQuery('MATCH (n:ConfigurationItem) DELETE n');
+        await runWriteQuery('MATCH (n:Event) DETACH DELETE n');
+        await runWriteQuery('MATCH (n:ConfigurationItem) DETACH DELETE n');
 
         let totalCIs = 0;
         let totalRelationships = 0;
@@ -184,23 +183,34 @@ async function createDemoEnterpriseData() {
             { source: 'application.errors', message: 'Application error rate spike', severity: 'HIGH', ciType: 'WebApplication' }
         ];
 
-        const eventCount = 25; // Small number of events
+        const eventCount = 100; // Increased number of events
         const baseTime = new Date();
-        const timeRange = 2 * 60 * 60 * 1000; // 2 hours
+        const timeRange = 30 * 60 * 1000; // 30 minutes for recent events
 
         for (let i = 0; i < eventCount; i++) {
             const template = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
 
-            // Get random CI of the right type
-            const ciResult = await runWriteQuery(`
+            // Get random CI of the right type, with fallback to any CI
+            let ciResult = await runWriteQuery(`
                 MATCH (ci:ConfigurationItem {type: $ciType})
                 RETURN ci.id as id
                 ORDER BY rand()
                 LIMIT 1
             `, { ciType: template.ciType });
 
+            // If no CI of specific type found, use any CI
+            if (ciResult.length === 0) {
+                ciResult = await runWriteQuery(`
+                    MATCH (ci:ConfigurationItem)
+                    RETURN ci.id as id
+                    ORDER BY rand()
+                    LIMIT 1
+                `);
+            }
+
             if (ciResult.length > 0) {
                 const ciId = ciResult[0].id;
+                // Create events more recently and spread across last 30 minutes
                 const eventTime = new Date(baseTime.getTime() - Math.random() * timeRange);
 
                 const eventData = {

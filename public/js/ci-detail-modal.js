@@ -346,16 +346,23 @@ class CIDetailModal {
 
         const g = svg.append('g');
 
+        // Convert relationships from API format (from/to) to D3 format (source/target)
+        const links = data.relationships.map(rel => ({
+            source: rel.from,
+            target: rel.to,
+            type: rel.type
+        }));
+
         // Create force simulation
         const simulation = d3.forceSimulation(data.nodes)
-            .force('link', d3.forceLink(data.relationships).id(d => d.id).distance(80))
+            .force('link', d3.forceLink(links).id(d => d.id).distance(80))
             .force('charge', d3.forceManyBody().strength(-300))
             .force('center', d3.forceCenter(width / 2, height / 2));
 
         // Create links
         const link = g.append('g')
             .selectAll('line')
-            .data(data.relationships)
+            .data(links)
             .join('line')
             .attr('stroke', '#999')
             .attr('stroke-width', 2)
