@@ -3,8 +3,46 @@ const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 const { Server } = require('socket.io');
+const rateLimit = require('express-rate-limit');
 const { runWriteQuery, runReadQuery } = require('./src/services/neo4j');
 const uuidv4 = () => crypto.randomUUID();
+
+// Rate limiters for different operation types
+// Standard rate limiter for read operations (150 requests per 15 minutes)
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: 'Too many read requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Write operations rate limiter (40 requests per 15 minutes)
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: 'Too many write requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Expensive operations rate limiter (50 requests per 15 minutes)
+const expensiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: 'Too many expensive requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Job and data generation limiter (20 requests per 15 minutes)
+const jobLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many job/generation requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Helper function to make internal HTTP requests
 function makeInternalRequest(path, method = 'POST', body = {}) {
@@ -118,7 +156,7 @@ app.get('/api/demo/scenarios', (req, res) => {
 });
 
 // Queue/Job management endpoints for data generation UI
-app.get('/api/queue/scales', (req, res) => {
+app.get('/api/queue/scales', readLimiter, (req, res) => {
   const scales = [
     { id: 'small', name: 'Small', description: 'Generate ~100 CIs for testing', estimatedTime: '< 1 min', estimatedDuration: '< 1 min', totalCIs: 100, complexity: 'Low' },
     { id: 'medium', name: 'Medium', description: 'Generate ~500 CIs for demos', estimatedTime: '< 2 min', estimatedDuration: '< 2 min', totalCIs: 500, complexity: 'Medium' },
@@ -128,14 +166,14 @@ app.get('/api/queue/scales', (req, res) => {
   res.json(scales);
 });
 
-app.get('/api/queue/stats', (req, res) => {
+app.get('/api/queue/stats', readLimiter, (req, res) => {
   res.json({
     queue: { pending: 0, active: 0, completed: 1, failed: 0 },
     workers: { active: 0, total: 0 }
   });
 });
 
-app.get('/api/jobs', (req, res) => {
+app.get('/api/jobs', readLimiter, (req, res) => {
   // Organize jobs by status for the frontend
   const jobs = {
     active: jobHistory.filter(job => job.status === 'active'),
@@ -150,7 +188,7 @@ app.get('/api/jobs', (req, res) => {
 // Job history storage (in memory for demo)
 let jobHistory = [];
 
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs', jobLimiter, async (req, res) => {
   const { scale, customConfig } = req.body;
   const clearExisting = customConfig?.clearExisting || false;
   const jobId = `job-${Date.now()}`;
@@ -235,7 +273,7 @@ app.post('/api/jobs', async (req, res) => {
 });
 
 // Cancel job endpoint
-app.delete('/api/jobs/:jobId', (req, res) => {
+app.delete('/api/jobs/:jobId', writeLimiter, (req, res) => {
   const { jobId } = req.params;
 
   console.log(`Cancelling job: ${jobId}`);
@@ -291,12 +329,12 @@ app.get('/api/demo/scenarios', (req, res) => {
 });
 
 // Configuration Items API
-app.get('/api/cmdb/items', (req, res) => {
+app.get('/api/cmdb/items', readLimiter, (req, res) => {
   res.json(demoData.configurationItems);
 });
 
 // Get specific Configuration Item with relationships
-app.get('/api/cmdb/items/:id', (req, res) => {
+app.get('/api/cmdb/items/:id', readLimiter, (req, res) => {
   const { id } = req.params;
 
   const ci = demoData.configurationItems.find(item => item.id === id);
@@ -330,7 +368,7 @@ app.get('/api/cmdb/items/:id', (req, res) => {
   });
 });
 
-app.get('/api/cmdb/topology', (req, res) => {
+app.get('/api/cmdb/topology', expensiveLimiter, (req, res) => {
   res.json({
     nodes: demoData.configurationItems,
     relationships: demoData.relationships
@@ -338,7 +376,7 @@ app.get('/api/cmdb/topology', (req, res) => {
 });
 
 // Browse API for paginated CI listing
-app.get('/api/cmdb/browse', (req, res) => {
+app.get('/api/cmdb/browse', readLimiter, (req, res) => {
   const {
     search = '',
     type = '',
@@ -426,7 +464,7 @@ app.get('/api/cmdb/browse', (req, res) => {
 });
 
 // Get relationship details for a specific CI
-app.get('/api/cmdb/items/:id/relationships', (req, res) => {
+app.get('/api/cmdb/items/:id/relationships', readLimiter, (req, res) => {
   const { id } = req.params;
 
   const ci = demoData.configurationItems.find(item => item.id === id);
@@ -458,11 +496,11 @@ app.get('/api/cmdb/items/:id/relationships', (req, res) => {
 });
 
 // Events API
-app.get('/api/events', (req, res) => {
+app.get('/api/events', readLimiter, (req, res) => {
   res.json(demoData.events);
 });
 
-app.get('/api/events/stats', (req, res) => {
+app.get('/api/events/stats', readLimiter, (req, res) => {
   const stats = {
     totalEvents: demoData.events.length,
     critical: demoData.events.filter(e => e.severity === 'CRITICAL').length,
@@ -477,7 +515,7 @@ app.get('/api/events/stats', (req, res) => {
   res.json(stats);
 });
 
-app.post('/api/events/simulate', (req, res) => {
+app.post('/api/events/simulate', writeLimiter, (req, res) => {
   const templates = [
     { message: 'CPU spike detected', severity: 'HIGH', type: 'PERFORMANCE' },
     { message: 'Memory threshold exceeded', severity: 'MEDIUM', type: 'PERFORMANCE' },
@@ -503,7 +541,7 @@ app.post('/api/events/simulate', (req, res) => {
 });
 
 // Demo sample data
-app.post('/api/demo/sample-data', (req, res) => {
+app.post('/api/demo/sample-data', jobLimiter, (req, res) => {
   // Add more sample data
   const additionalCIs = [
     { id: 'ci-5', name: 'Core Switch 1', type: 'NetworkSwitch', status: 'OPERATIONAL' },
@@ -552,7 +590,7 @@ app.get('/api/demo/test-here', (req, res) => {
 });
 
 // Demo scenarios API for graph advantages demo
-app.get('/api/demo/graph-advantage-examples', (req, res) => {
+app.get('/api/demo/graph-advantage-examples', readLimiter, (req, res) => {
   const demoScenarios = [
     {
       id: 'database-cascade-failure',
@@ -594,7 +632,7 @@ app.get('/api/demo/graph-advantage-examples', (req, res) => {
 });
 
 // Demo impact analysis (original endpoint)
-app.get('/api/demo/impact/:componentId', (req, res) => {
+app.get('/api/demo/impact/:componentId', expensiveLimiter, (req, res) => {
   const { componentId } = req.params;
   const { direction = 'both', depth = 3 } = req.query;
 
@@ -662,7 +700,7 @@ app.get('/api/demo/impact/:componentId', (req, res) => {
 });
 
 // Demo impact analysis (frontend-expected endpoint)
-app.get('/api/demo/impact-analysis/:componentId', (req, res) => {
+app.get('/api/demo/impact-analysis/:componentId', expensiveLimiter, (req, res) => {
   const { componentId } = req.params;
   const { maxDepth = 3, direction = 'downstream' } = req.query;
 
@@ -763,7 +801,7 @@ app.get('/api/demo/impact-analysis/:componentId', (req, res) => {
 });
 
 // Query comparison for graph advantage demo
-app.get('/api/demo/query-comparison/:componentId', (req, res) => {
+app.get('/api/demo/query-comparison/:componentId', readLimiter, (req, res) => {
   const { componentId } = req.params;
   const { depth = 3 } = req.query;
 
@@ -851,7 +889,7 @@ ORDER BY depth, type;`;
 });
 
 // Enterprise data demo (in-memory simulation)
-app.post('/api/demo/enterprise-data', (req, res) => {
+app.post('/api/demo/enterprise-data', jobLimiter, (req, res) => {
   // Generate enterprise-scale demo data
   console.log('🏢 Generating enterprise-scale demo data...');
 
@@ -1014,7 +1052,7 @@ app.post('/api/demo/enterprise-data', (req, res) => {
 });
 
 // Advanced Correlation API with multi-hop analysis
-app.get('/api/correlation/analyze', (req, res) => {
+app.get('/api/correlation/analyze', expensiveLimiter, (req, res) => {
   const { timeWindowHours = 1, maxHops = 3, minConfidence = 0.5 } = req.query;
 
   console.log(`🔗 Running advanced correlation analysis...`);
@@ -1163,7 +1201,7 @@ app.get('/api/correlation/analyze', (req, res) => {
   });
 });
 
-app.get('/api/correlation/business-impact', (req, res) => {
+app.get('/api/correlation/business-impact', expensiveLimiter, (req, res) => {
   console.log(`💼 Calculating business impact analysis...`);
 
   // Enhanced business impact calculation with revenue modeling
@@ -1321,7 +1359,7 @@ app.get('/api/correlation/business-impact', (req, res) => {
   });
 });
 
-app.get('/api/correlation/patterns', (req, res) => {
+app.get('/api/correlation/patterns', expensiveLimiter, (req, res) => {
   const patterns = [];
 
   // Group events by CI
@@ -1359,7 +1397,7 @@ app.get('/api/correlation/patterns', (req, res) => {
 });
 
 // Scenario-specific endpoints for realistic demonstrations
-app.post('/api/demo/scenario/:scenarioId/events', (req, res) => {
+app.post('/api/demo/scenario/:scenarioId/events', writeLimiter, (req, res) => {
   const { scenarioId } = req.params;
   const { eventCount = 5, timeSpanMinutes = 10 } = req.body;
 
@@ -1442,7 +1480,7 @@ app.post('/api/demo/scenario/:scenarioId/events', (req, res) => {
 });
 
 // Cascade event simulation
-app.post('/api/demo/simulate-cascade', (req, res) => {
+app.post('/api/demo/simulate-cascade', writeLimiter, (req, res) => {
   const { rootComponentId, cascadeDepth = 3, timeDelayMinutes = 5 } = req.body;
 
   // Find a root component if not specified
@@ -1549,7 +1587,7 @@ app.post('/api/demo/simulate-cascade', (req, res) => {
 // Real-time event streaming simulation
 let eventStreamInterval = null;
 
-app.post('/api/demo/start-event-stream', (req, res) => {
+app.post('/api/demo/start-event-stream', writeLimiter, (req, res) => {
   const { intervalSeconds = 10, eventTypes = ['PERFORMANCE', 'AVAILABILITY', 'CAPACITY'] } = req.body;
 
   if (eventStreamInterval) {
@@ -1638,7 +1676,7 @@ app.post('/api/demo/start-event-stream', (req, res) => {
   });
 });
 
-app.post('/api/demo/stop-event-stream', (req, res) => {
+app.post('/api/demo/stop-event-stream', writeLimiter, (req, res) => {
   if (eventStreamInterval) {
     clearInterval(eventStreamInterval);
     eventStreamInterval = null;
@@ -1662,7 +1700,7 @@ app.use((err, req, res, next) => {
 });
 
 // Services status endpoint
-app.get('/api/cmdb/services/status', (req, res) => {
+app.get('/api/cmdb/services/status', readLimiter, (req, res) => {
   const startTime = Date.now();
 
   // Get application info

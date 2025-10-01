@@ -19,26 +19,27 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bull": "^4.12.9",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "joi": "^17.13.3",
     "neo4j-driver": "^5.28.2",
-    "uuid": "^13.0.0",
-    "bull": "^4.12.9",
     "redis": "^4.7.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "yaml": "^2.5.1",
+    "uuid": "^13.0.0",
     "winston": "^3.15.0",
-    "joi": "^17.13.3"
+    "yaml": "^2.5.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
+    "@jest/globals": "^29.7.0",
     "jest": "^29.7.0",
-    "supertest": "^6.3.4",
-    "puppeteer": "^21.11.0",
+    "nodemon": "^3.1.10",
     "pixelmatch": "^5.3.0",
     "pngjs": "^7.0.0",
-    "@jest/globals": "^29.7.0"
+    "puppeteer": "^21.11.0",
+    "supertest": "^6.3.4"
   }
 }

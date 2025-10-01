@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { connectToNeo4j, closeConnection } = require('./services/neo4j');
@@ -13,6 +14,34 @@ const correlationRoutes = require('./api/correlation');
 const demoRoutes = require('./api/demo');
 
 const app = express();
+
+// Rate limiters for different operation types
+// Standard rate limiter for general API requests (200 requests per 15 minutes)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Limit each IP to 200 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Job operations rate limiter (30 jobs per 15 minutes to prevent abuse)
+const jobLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  message: 'Too many job requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Queue stats rate limiter (100 requests per 15 minutes)
+const statsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: 'Too many stats requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -46,7 +75,7 @@ app.use('/api/correlation', correlationRoutes);
 app.use('/api/demo', demoRoutes);
 
 // Job Management API Routes
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs', jobLimiter, async (req, res) => {
   try {
     const { scale = 'medium', customConfig = {} } = req.body;
     const job = await queueService.createDataGenerationJob(scale, customConfig);
@@ -61,7 +90,7 @@ app.post('/api/jobs', async (req, res) => {
   }
 });
 
-app.get('/api/jobs/:jobId', async (req, res) => {
+app.get('/api/jobs/:jobId', apiLimiter, async (req, res) => {
   try {
     const { jobId } = req.params;
     const status = await queueService.getJobStatus(jobId);
@@ -77,7 +106,7 @@ app.get('/api/jobs/:jobId', async (req, res) => {
   }
 });
 
-app.get('/api/jobs', async (req, res) => {
+app.get('/api/jobs', apiLimiter, async (req, res) => {
   try {
     const jobs = await queueService.getActiveJobs();
     res.json(jobs);
@@ -87,7 +116,7 @@ app.get('/api/jobs', async (req, res) => {
   }
 });
 
-app.delete('/api/jobs/:jobId', async (req, res) => {
+app.delete('/api/jobs/:jobId', jobLimiter, async (req, res) => {
   try {
     const { jobId } = req.params;
     const result = await queueService.cancelJob(jobId);
@@ -102,7 +131,7 @@ app.delete('/api/jobs/:jobId', async (req, res) => {
   }
 });
 
-app.get('/api/queue/stats', async (req, res) => {
+app.get('/api/queue/stats', statsLimiter, async (req, res) => {
   try {
     const stats = await queueService.getQueueStats();
     res.json(stats);
@@ -112,7 +141,7 @@ app.get('/api/queue/stats', async (req, res) => {
   }
 });
 
-app.get('/api/queue/scales', (req, res) => {
+app.get('/api/queue/scales', apiLimiter, (req, res) => {
   try {
     const scales = queueService.getScaleConfigs();
     res.json(scales);
