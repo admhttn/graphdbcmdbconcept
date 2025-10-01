@@ -251,12 +251,26 @@ class CMDBApp {
     async loadEvents() {
         try {
             const severityFilter = document.getElementById('severity-filter')?.value || '';
-            const url = severityFilter ? `/api/events?severity=${severityFilter}` : '/api/events';
+            const url = severityFilter ? `/api/events?severity=${severityFilter}&limit=50` : '/api/events?limit=50';
 
             const response = await fetch(url);
             const events = await response.json();
 
-            this.displayEvents(events);
+            // Fetch CI details for each event
+            const enrichedEvents = await Promise.all(events.map(async (event) => {
+                try {
+                    const ciResponse = await fetch(`/api/events/${event.id}/affected-ci`);
+                    if (ciResponse.ok) {
+                        const ciData = await ciResponse.json();
+                        return { ...event, ciDetails: ciData };
+                    }
+                } catch (err) {
+                    console.warn(`Failed to fetch CI details for event ${event.id}:`, err);
+                }
+                return event;
+            }));
+
+            this.displayEvents(enrichedEvents);
         } catch (error) {
             console.error('Error loading events:', error);
             this.showError('Failed to load events');
@@ -271,20 +285,58 @@ class CMDBApp {
             return;
         }
 
-        container.innerHTML = events.map(event => `
-            <div class="event-item">
-                <div class="event-header">
-                    <span class="event-severity severity-${event.severity.toLowerCase()}">${event.severity}</span>
-                    <span class="event-meta">${this.formatTimestamp(event.timestamp)}</span>
+        container.innerHTML = events.map(event => {
+            const metadata = event.metadata ? (typeof event.metadata === 'string' ? JSON.parse(event.metadata) : event.metadata) : {};
+            const ciDetails = event.ciDetails || {};
+            const ci = ciDetails.ci || null;
+
+            // Build CI details section
+            let ciInfoHTML = '';
+            if (ci) {
+                ciInfoHTML = `
+                    <div class="event-ci-details">
+                        <div class="ci-info-row">
+                            <span class="ci-label">🎯 Affected CI:</span>
+                            <span class="ci-name">${ci.name || 'Unknown'}</span>
+                            <span class="ci-type type-badge">${ci.type || 'N/A'}</span>
+                        </div>
+                        <div class="ci-info-row">
+                            ${ci.status ? `<span class="ci-status status-${ci.status.toLowerCase()}">${ci.status}</span>` : ''}
+                            ${ci.criticality ? `<span class="ci-criticality criticality-${ci.criticality.toLowerCase()}">${ci.criticality}</span>` : ''}
+                            ${ciDetails.relationshipCount ? `<span class="ci-rel-count" title="Number of relationships">🔗 ${ciDetails.relationshipCount} rel${ciDetails.relationshipCount !== 1 ? 's' : ''}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Build metadata section
+            let metadataHTML = '';
+            if (Object.keys(metadata).length > 0 && metadata.template) {
+                metadataHTML = `<span class="event-template">Template: ${metadata.template}</span>`;
+            }
+
+            return `
+                <div class="event-item event-severity-${event.severity.toLowerCase()}">
+                    <div class="event-header">
+                        <div class="event-severity-group">
+                            <span class="event-severity severity-${event.severity.toLowerCase()}">${event.severity}</span>
+                            ${event.eventType ? `<span class="event-type">${event.eventType}</span>` : ''}
+                        </div>
+                        <div class="event-time-group">
+                            <span class="event-time">${this.formatTimestamp(event.timestamp)}</span>
+                            <span class="event-status status-${event.status.toLowerCase()}">${event.status}</span>
+                        </div>
+                    </div>
+                    <div class="event-message">${event.message}</div>
+                    ${ciInfoHTML}
+                    <div class="event-meta">
+                        <span>Source: ${event.source || 'unknown'}</span>
+                        ${event.correlationScore > 0 ? `<span> | Correlation: ${Math.round(event.correlationScore * 100)}%</span>` : ''}
+                        ${metadataHTML ? ` | ${metadataHTML}` : ''}
+                    </div>
                 </div>
-                <div class="event-message">${event.message}</div>
-                <div class="event-meta">
-                    <span>Source: ${event.source}</span>
-                    ${event.affectedCI ? `<span> | CI: ${event.affectedCI}</span>` : ''}
-                    <span> | Status: ${event.status}</span>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     async simulateEvent() {

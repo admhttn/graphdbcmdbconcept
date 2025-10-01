@@ -402,10 +402,17 @@ class DataGenerationManager {
         // Update progress bar
         document.getElementById('progress-fill').style.width = `${progressData.percentage}%`;
         document.getElementById('progress-percentage').textContent = `${progressData.percentage}%`;
-        document.getElementById('progress-stage').textContent = progressData.stage.replace('-', ' ');
+
+        // Format stage name for display
+        const stageName = progressData.stage
+            .replace('-', ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+        document.getElementById('progress-stage').textContent = stageName;
+
+        // Display detailed progress message
         document.getElementById('progress-message').textContent = progressData.message;
 
-        // Update job status
+        // Update job status with appropriate styling
         const statusElement = document.getElementById('job-status');
         if (progressData.stage === 'completed') {
             statusElement.textContent = 'COMPLETED';
@@ -413,6 +420,11 @@ class DataGenerationManager {
             this.hideJobProgress();
             this.currentJob = null;
             this.showSuccess('Data generation completed successfully!');
+
+            // Refresh overview stats to show new data
+            if (window.app && window.app.loadOverview) {
+                window.app.loadOverview();
+            }
         } else if (progressData.stage === 'error') {
             statusElement.textContent = 'FAILED';
             statusElement.className = 'status-badge failed';
@@ -420,6 +432,11 @@ class DataGenerationManager {
         } else {
             statusElement.textContent = 'ACTIVE';
             statusElement.className = 'status-badge active';
+        }
+
+        // Log detailed progress for debugging
+        if (window.logDebug) {
+            window.logDebug('DataGen', `Stage: ${progressData.stage} | ${progressData.completed}/${progressData.total} | ${progressData.message}`);
         }
     }
 

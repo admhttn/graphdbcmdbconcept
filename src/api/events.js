@@ -124,6 +124,37 @@ router.get('/ci/:ciId', async (req, res) => {
   }
 });
 
+// Get affected CI details for a specific event
+router.get('/:eventId/affected-ci', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const cypher = `
+      MATCH (e:Event {id: $eventId})-[:AFFECTS]->(ci:ConfigurationItem)
+      OPTIONAL MATCH (ci)-[r]-()
+      WITH ci, count(DISTINCT r) as relationshipCount
+      RETURN ci, relationshipCount
+    `;
+
+    const result = await runReadQuery(cypher, { eventId });
+
+    if (result.length === 0) {
+      return res.json({ ci: null, relationshipCount: 0 });
+    }
+
+    const ciProps = result[0].ci.properties;
+    const relCount = result[0].relationshipCount;
+
+    res.json({
+      ci: ciProps,
+      relationshipCount: typeof relCount === 'object' && 'low' in relCount ? relCount.low : relCount
+    });
+  } catch (error) {
+    console.error('Error fetching event CI details:', error);
+    res.status(500).json({ error: 'Failed to fetch CI details for event' });
+  }
+});
+
 // Update event status
 router.patch('/:id/status', async (req, res) => {
   try {

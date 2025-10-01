@@ -4107,3 +4107,251 @@ header p {
         align-items: flex-start;
     }
 }
+
+/* Enhanced Event Cards Styling */
+.event-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-left: 4px solid #dee2e6;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.event-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.event-item.event-severity-critical {
+    border-left-color: #dc3545;
+    background: #fff5f5;
+}
+
+.event-item.event-severity-high {
+    border-left-color: #fd7e14;
+    background: #fff9f5;
+}
+
+.event-item.event-severity-medium {
+    border-left-color: #ffc107;
+    background: #fffef5;
+}
+
+.event-item.event-severity-low {
+    border-left-color: #17a2b8;
+    background: #f5fcff;
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.event-severity-group,
+.event-time-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.event-severity {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: white;
+}
+
+.event-severity.severity-critical {
+    background: #dc3545;
+}
+
+.event-severity.severity-high {
+    background: #fd7e14;
+}
+
+.event-severity.severity-medium {
+    background: #ffc107;
+    color: #333;
+}
+
+.event-severity.severity-low {
+    background: #17a2b8;
+}
+
+.event-severity.severity-info {
+    background: #6c757d;
+}
+
+.event-type {
+    padding: 4px 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #495057;
+    text-transform: uppercase;
+}
+
+.event-status {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.event-status.status-open {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+.event-status.status-acknowledged {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.event-status.status-resolved {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.event-time {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.event-message {
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+    color: #212529;
+    line-height: 1.4;
+}
+
+.event-ci-details {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.ci-info-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.ci-info-row:last-child {
+    margin-bottom: 0;
+}
+
+.ci-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #495057;
+}
+
+.ci-name {
+    font-weight: 500;
+    color: #212529;
+    font-size: 0.9rem;
+}
+
+.ci-type.type-badge {
+    padding: 2px 8px;
+    background: #667eea;
+    color: white;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.ci-status {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.ci-status.status-operational {
+    background: #d4edda;
+    color: #155724;
+}
+
+.ci-status.status-degraded {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.ci-status.status-failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.ci-status.status-maintenance {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.ci-criticality {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.ci-criticality.criticality-critical {
+    background: #dc3545;
+    color: white;
+}
+
+.ci-criticality.criticality-high {
+    background: #fd7e14;
+    color: white;
+}
+
+.ci-criticality.criticality-medium {
+    background: #ffc107;
+    color: #333;
+}
+
+.ci-criticality.criticality-low {
+    background: #17a2b8;
+    color: white;
+}
+
+.ci-rel-count {
+    font-size: 0.8rem;
+    color: #6c757d;
+    padding: 2px 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+}
+
+.event-meta {
+    font-size: 0.8rem;
+    color: #6c757d;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.event-template {
+    font-style: italic;
+}

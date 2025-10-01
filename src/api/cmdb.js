@@ -388,25 +388,35 @@ router.get('/topology', async (req, res) => {
     let cypher, params;
 
     if (startNode) {
+      // Get all nodes within depth - use apoc.path.subgraphNodes for reliable traversal
+      const depthParam = parseInt(depth);
       cypher = `
-        MATCH path = (start:ConfigurationItem {id: $startNode})-[*1..${depth}]-(connected)
-        WITH nodes(path) as nodeList, relationships(path) as relList
-        UNWIND nodeList as node
-        WITH collect(DISTINCT {
-          id: node.id,
-          name: node.name,
-          type: node.type,
-          status: coalesce(node.status, 'unknown')
-        }) as nodes, relList
-        UNWIND relList as rel
-        RETURN nodes,
-               collect(DISTINCT {
-                 from: startNode(rel).id,
-                 to: endNode(rel).id,
-                 type: type(rel)
-               }) as relationships
+        MATCH (start:ConfigurationItem {id: $startNode})
+        CALL apoc.path.subgraphNodes(start, {
+          maxLevel: ${depthParam},
+          relationshipFilter: null,
+          labelFilter: 'ConfigurationItem'
+        }) YIELD node
+        WITH collect(DISTINCT node) as allNodes
+
+        // Get all relationships between these nodes
+        UNWIND allNodes as n1
+        MATCH (n1)-[r]-(n2)
+        WHERE n2 IN allNodes
+
+        RETURN [n IN allNodes | {
+          id: n.id,
+          name: n.name,
+          type: n.type,
+          status: coalesce(n.status, 'unknown')
+        }] as nodes,
+        collect(DISTINCT {
+          from: startNode(r).id,
+          to: endNode(r).id,
+          type: type(r)
+        }) as relationships
       `;
-      params = { startNode, depth: parseInt(depth) };
+      params = { startNode };
     } else {
       // Build base query with optional type filter
       let nodeQuery = 'MATCH (ci:ConfigurationItem)';
