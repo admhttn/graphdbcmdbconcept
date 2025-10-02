@@ -304,50 +304,147 @@
 
             <!-- Correlation Tab -->
             <div id="correlation" class="tab-content">
-                <div class="toolbar">
-                    <select id="time-window">
-                        <option value="5m">Last 5 minutes</option>
-                        <option value="15m">Last 15 minutes</option>
-                        <option value="1h" selected>Last hour</option>
-                        <option value="6h">Last 6 hours</option>
-                    </select>
-                    <button id="run-correlation">Run Analysis</button>
-                    <button id="run-engine">Run Engine</button>
-                </div>
-
-                <!-- Correlation Analysis Focus -->
-                <div class="section correlation-analysis-focus">
-                    <h3>🔍 Correlation Analysis</h3>
+                <!-- Correlation Analysis Header -->
+                <div class="section">
+                    <h2>🔍 Event Correlation Analysis</h2>
                     <div class="analysis-info">
-                        <p><strong>Analysis Focus:</strong> This tab analyzes existing events for correlations and patterns. Use the Events tab to generate test data for correlation analysis.</p>
-                    </div>
-                    <div class="correlation-controls">
-                        <div class="control-group">
-                            <button id="start-realtime-stream" class="secondary-btn">Start Real-time Analysis</button>
-                            <button id="stop-realtime-stream" class="secondary-btn" style="display: none;">Stop Analysis</button>
+                        <p><strong>Purpose:</strong> This tool finds relationships between IT events to help identify root causes, predict failures, and understand system dependencies.</p>
+                        <div class="correlation-status" id="correlation-status">
+                            <div class="status-item">
+                                <span class="status-label">System Status:</span>
+                                <span class="status-value" id="system-status">Loading...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Last Analysis:</span>
+                                <span class="status-value" id="last-analysis">Never</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Data Readiness Check -->
+                <div class="section">
+                    <h3>📊 Data Readiness</h3>
+                    <div id="data-readiness" class="data-readiness">
+                        <div class="readiness-item">
+                            <span class="readiness-label">Total Events:</span>
+                            <span class="readiness-value" id="total-events">-</span>
+                        </div>
+                        <div class="readiness-item">
+                            <span class="readiness-label">Events with CI Links:</span>
+                            <span class="readiness-value" id="linked-events">-</span>
+                        </div>
+                        <div class="readiness-item">
+                            <span class="readiness-label">Recent Events (1h):</span>
+                            <span class="readiness-value" id="recent-events">-</span>
+                        </div>
+                        <div class="readiness-item">
+                            <span class="readiness-label">Correlation Ready:</span>
+                            <span class="readiness-status" id="correlation-ready">Checking...</span>
+                        </div>
+                    </div>
+                    <button id="check-data-readiness" class="secondary-btn">🔄 Refresh Data Status</button>
+                </div>
+
+                <!-- Correlation Controls -->
+                <div class="section">
+                    <h3>⚡ Correlation Analysis</h3>
+                    <div class="correlation-controls">
+                        <div class="control-row">
+                            <div class="control-group">
+                                <label for="time-window">Analysis Time Window:</label>
+                                <select id="time-window">
+                                    <option value="15m">Last 15 minutes</option>
+                                    <option value="1h" selected>Last hour</option>
+                                    <option value="6h">Last 6 hours</option>
+                                    <option value="24h">Last 24 hours</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="correlation-threshold">Correlation Threshold:</label>
+                                <select id="correlation-threshold">
+                                    <option value="0.1">Low (0.1) - Show weak correlations</option>
+                                    <option value="0.3">Medium (0.3) - Show moderate correlations</option>
+                                    <option value="0.5" selected>High (0.5) - Show strong correlations</option>
+                                    <option value="0.7">Very High (0.7) - Show only strongest correlations</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button id="find-correlations" class="primary-btn">
+                                🔍 Find Event Correlations
+                                <span class="btn-subtitle">Analyze temporal and topological relationships</span>
+                            </button>
+                            <button id="analyze-business-impact" class="secondary-btn">
+                                💼 Analyze Business Impact
+                                <span class="btn-subtitle">Map events to business services</span>
+                            </button>
+                            <button id="create-test-events" class="secondary-btn">
+                                ⚡ Create Test Events
+                                <span class="btn-subtitle">Generate correlated events for testing</span>
+                            </button>
+                        </div>
+
+                        <div id="analysis-progress" class="analysis-progress" style="display: none;">
+                            <div class="progress-header">
+                                <span id="progress-title">Running Analysis...</span>
+                                <span id="progress-status">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="progress-fill" class="progress-fill"></div>
+                            </div>
+                            <div id="progress-message" class="progress-message">Starting analysis...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Grid -->
                 <div class="correlation-grid">
                     <div class="section">
-                        <h3>Event Correlations</h3>
+                        <h3>🔗 Event Correlations</h3>
                         <div id="correlations-list" class="correlations">
-                            <div class="loading">Run correlation analysis...</div>
+                            <div class="empty-state">
+                                <p>No correlations found. Click "Find Event Correlations" to analyze current events.</p>
+                                <div class="help-text">
+                                    <strong>Tip:</strong> Correlations work best when you have:
+                                    <ul>
+                                        <li>Multiple recent events (within the time window)</li>
+                                        <li>Events linked to Configuration Items</li>
+                                        <li>Events on related infrastructure components</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="section">
-                        <h3>Business Impact</h3>
+                        <h3>💼 Business Impact</h3>
                         <div id="business-impact" class="business-impact">
-                            <div class="loading">Run correlation analysis...</div>
+                            <div class="empty-state">
+                                <p>No business impact data. Click "Analyze Business Impact" to assess service impact.</p>
+                            </div>
                         </div>
                     </div>
 
                     <div class="section">
-                        <h3>Pattern Analysis</h3>
+                        <h3>📈 Pattern Analysis</h3>
                         <div id="patterns" class="patterns">
-                            <div class="loading">Loading patterns...</div>
+                            <div class="empty-state">
+                                <p>Pattern analysis shows recurring issues. This loads automatically when the tab opens.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debug Information (Collapsible) -->
+                <div class="section">
+                    <h3>🐛 Diagnostic Information</h3>
+                    <button id="toggle-debug" class="secondary-btn">Show Debug Details</button>
+                    <div id="debug-info" class="debug-info" style="display: none;">
+                        <div class="debug-section">
+                            <h4>Raw Debug Data</h4>
+                            <pre id="debug-output">Click "Show Debug Details" to view system diagnostics...</pre>
                         </div>
                     </div>
                 </div>
@@ -688,6 +785,8 @@
                                     <option value="1">1 hop</option>
                                     <option value="2" selected>2 hops</option>
                                     <option value="3">3 hops</option>
+                                    <option value="4">4 hops</option>
+                                    <option value="5">5 hops</option>
                                 </select>
                                 <button id="refresh-topology" class="secondary-btn">Refresh</button>
                                 <button id="reset-topology-zoom" class="secondary-btn">Reset Zoom</button>

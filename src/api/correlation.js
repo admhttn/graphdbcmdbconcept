@@ -3,6 +3,50 @@ const { runReadQuery, runWriteQuery } = require('../services/neo4j');
 
 const router = express.Router();
 
+// Debug endpoint to check event-CI relationships
+router.get('/debug', async (req, res) => {
+  try {
+    const queries = [
+      // Count total events
+      'MATCH (e:Event) RETURN count(e) as totalEvents',
+
+      // Count events with AFFECTS relationships
+      'MATCH (e:Event)-[:AFFECTS]->(ci:ConfigurationItem) RETURN count(e) as eventsWithAffects',
+
+      // Sample events with relationships
+      'MATCH (e:Event)-[:AFFECTS]->(ci:ConfigurationItem) RETURN e.id, e.message, e.severity, e.timestamp, ci.name LIMIT 5',
+
+      // Recent events (last hour) with relationships
+      'MATCH (e:Event)-[:AFFECTS]->(ci:ConfigurationItem) WHERE e.timestamp >= datetime() - duration("PT1H") RETURN count(e) as recentEventsWithAffects',
+
+      // Check for temporal proximity between recent events
+      `MATCH (e1:Event)-[:AFFECTS]->(ci1:ConfigurationItem)
+       MATCH (e2:Event)-[:AFFECTS]->(ci2:ConfigurationItem)
+       WHERE e1.timestamp >= datetime() - duration("PT1H")
+         AND e2.timestamp >= datetime() - duration("PT1H")
+         AND e1.id <> e2.id
+         AND duration.between(datetime(e1.timestamp), datetime(e2.timestamp)).seconds <= 300
+       RETURN count(*) as temporallyCloseEvents LIMIT 1`
+    ];
+
+    const results = {};
+    for (let i = 0; i < queries.length; i++) {
+      const result = await runReadQuery(queries[i]);
+      results[`query_${i}`] = result;
+    }
+
+    res.json({
+      debug: true,
+      timestamp: new Date().toISOString(),
+      results
+    });
+
+  } catch (error) {
+    console.error('Error in correlation debug:', error);
+    res.status(500).json({ error: 'Failed to run debug queries', details: error.message });
+  }
+});
+
 // Advanced correlation analysis
 router.get('/analyze', async (req, res) => {
   try {

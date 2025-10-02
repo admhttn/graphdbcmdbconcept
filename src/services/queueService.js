@@ -361,6 +361,96 @@ dataGenerationQueue.on('failed', (job, err) => {
   logger.error(`❌ Job ${job.data.jobId} failed:`, err.message);
 });
 
+// Job processor for data generation
+dataGenerationQueue.process('generate-enterprise-data', async (job) => {
+  const { jobId, scale, config } = job.data;
+  const { createDemoEnterpriseData } = require('../models/demoEnterpriseData');
+
+  try {
+    logger.info(`🔄 Starting data generation job ${jobId} with scale: ${scale}`);
+
+    // Update progress: starting
+    await updateJobProgress(jobId, {
+      stage: 'starting',
+      completed: 5,
+      total: 100,
+      percentage: 5,
+      message: 'Initializing data generation...',
+      scale: config.name,
+      totalCIs: config.totalCIs
+    });
+
+    // Clear existing data if requested
+    if (config.clearExisting) {
+      await updateJobProgress(jobId, {
+        stage: 'clearing',
+        completed: 10,
+        total: 100,
+        percentage: 10,
+        message: 'Clearing existing data...',
+        scale: config.name,
+        totalCIs: config.totalCIs
+      });
+    }
+
+    // Update progress: generating CIs
+    await updateJobProgress(jobId, {
+      stage: 'generating_cis',
+      completed: 20,
+      total: 100,
+      percentage: 20,
+      message: 'Generating configuration items...',
+      scale: config.name,
+      totalCIs: config.totalCIs
+    });
+
+    // Generate the data using the existing function
+    const result = await createDemoEnterpriseData();
+
+    // Update progress: generating events
+    await updateJobProgress(jobId, {
+      stage: 'generating_events',
+      completed: 80,
+      total: 100,
+      percentage: 80,
+      message: 'Generating events and relationships...',
+      scale: config.name,
+      totalCIs: config.totalCIs
+    });
+
+    // Final completion
+    await updateJobProgress(jobId, {
+      stage: 'completed',
+      completed: 100,
+      total: 100,
+      percentage: 100,
+      message: 'Data generation completed successfully',
+      scale: config.name,
+      totalCIs: config.totalCIs,
+      result
+    });
+
+    logger.info(`✅ Data generation job ${jobId} completed successfully`);
+    return result;
+
+  } catch (error) {
+    logger.error(`❌ Data generation job ${jobId} failed:`, error);
+
+    await updateJobProgress(jobId, {
+      stage: 'failed',
+      completed: 0,
+      total: 100,
+      percentage: 0,
+      message: `Data generation failed: ${error.message}`,
+      scale: config.name,
+      totalCIs: config.totalCIs,
+      error: error.message
+    });
+
+    throw error;
+  }
+});
+
 // Schedule cleanup every hour
 setInterval(cleanupOldJobs, 60 * 60 * 1000);
 

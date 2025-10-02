@@ -2,9 +2,47 @@ const express = require('express');
 const crypto = require('crypto');
 const uuidv4 = () => crypto.randomUUID();
 const neo4j = require('neo4j-driver');
+const rateLimit = require('express-rate-limit');
 const { runReadQuery, runWriteQuery, initializeDatabase } = require('../services/neo4j');
 
 const router = express.Router();
+
+// Rate limiters for different operation types
+// Standard rate limiter for read operations (100 requests per 15 minutes)
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many read requests from this IP, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Stricter rate limiter for write operations (20 requests per 15 minutes)
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Limit each IP to 20 write requests per windowMs
+  message: 'Too many write requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Very strict rate limiter for expensive operations like topology and impact analysis (30 requests per 15 minutes)
+const expensiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // Limit each IP to 30 expensive requests per windowMs
+  message: 'Too many expensive requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Extra strict rate limiter for destructive operations (5 requests per 15 minutes)
+const destructiveLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 destructive requests per windowMs
+  message: 'Too many destructive requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Initialize database on first load
 let initialized = false;
@@ -17,7 +55,7 @@ async function ensureInitialized() {
 }
 
 // Get comprehensive database statistics
-router.get('/database/stats', async (req, res) => {
+router.get('/database/stats', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -104,7 +142,7 @@ router.get('/database/stats', async (req, res) => {
 });
 
 // Clear all demo data
-router.delete('/database/clear', async (req, res) => {
+router.delete('/database/clear', destructiveLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -154,7 +192,7 @@ router.delete('/database/clear', async (req, res) => {
 });
 
 // Get count of Configuration Items
-router.get('/items/count', async (req, res) => {
+router.get('/items/count', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -183,7 +221,7 @@ router.get('/items/count', async (req, res) => {
 });
 
 // Get all Configuration Items
-router.get('/items', async (req, res) => {
+router.get('/items', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -207,7 +245,7 @@ router.get('/items', async (req, res) => {
 });
 
 // Get specific Configuration Item with relationships
-router.get('/items/:id', async (req, res) => {
+router.get('/items/:id', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -247,7 +285,7 @@ router.get('/items/:id', async (req, res) => {
 });
 
 // Create new Configuration Item
-router.post('/items', async (req, res) => {
+router.post('/items', writeLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -283,7 +321,7 @@ router.post('/items', async (req, res) => {
 });
 
 // Update Configuration Item
-router.put('/items/:id', async (req, res) => {
+router.put('/items/:id', writeLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -316,7 +354,7 @@ router.put('/items/:id', async (req, res) => {
 });
 
 // Delete Configuration Item
-router.delete('/items/:id', async (req, res) => {
+router.delete('/items/:id', writeLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -342,7 +380,7 @@ router.delete('/items/:id', async (req, res) => {
 });
 
 // Create relationship between Configuration Items
-router.post('/relationships', async (req, res) => {
+router.post('/relationships', writeLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -378,7 +416,7 @@ router.post('/relationships', async (req, res) => {
 });
 
 // Get topology/dependency graph
-router.get('/topology', async (req, res) => {
+router.get('/topology', expensiveLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -388,25 +426,35 @@ router.get('/topology', async (req, res) => {
     let cypher, params;
 
     if (startNode) {
+      // Get all nodes within depth - use apoc.path.subgraphNodes for reliable traversal
+      const depthParam = parseInt(depth);
       cypher = `
-        MATCH path = (start:ConfigurationItem {id: $startNode})-[*1..${depth}]-(connected)
-        WITH nodes(path) as nodeList, relationships(path) as relList
-        UNWIND nodeList as node
-        WITH collect(DISTINCT {
-          id: node.id,
-          name: node.name,
-          type: node.type,
-          status: coalesce(node.status, 'unknown')
-        }) as nodes, relList
-        UNWIND relList as rel
-        RETURN nodes,
-               collect(DISTINCT {
-                 from: startNode(rel).id,
-                 to: endNode(rel).id,
-                 type: type(rel)
-               }) as relationships
+        MATCH (start:ConfigurationItem {id: $startNode})
+        CALL apoc.path.subgraphNodes(start, {
+          maxLevel: ${depthParam},
+          relationshipFilter: null,
+          labelFilter: 'ConfigurationItem'
+        }) YIELD node
+        WITH collect(DISTINCT node) as allNodes
+
+        // Get all relationships between these nodes
+        UNWIND allNodes as n1
+        MATCH (n1)-[r]-(n2)
+        WHERE n2 IN allNodes
+
+        RETURN [n IN allNodes | {
+          id: n.id,
+          name: n.name,
+          type: n.type,
+          status: coalesce(n.status, 'unknown')
+        }] as nodes,
+        collect(DISTINCT {
+          from: startNode(r).id,
+          to: endNode(r).id,
+          type: type(r)
+        }) as relationships
       `;
-      params = { startNode, depth: parseInt(depth) };
+      params = { startNode };
     } else {
       // Build base query with optional type filter
       let nodeQuery = 'MATCH (ci:ConfigurationItem)';
@@ -457,7 +505,7 @@ router.get('/topology', async (req, res) => {
 });
 
 // Get paginated Configuration Items with search and filter capabilities for browse view
-router.get('/browse', async (req, res) => {
+router.get('/browse', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -581,7 +629,7 @@ router.get('/browse', async (req, res) => {
 });
 
 // Get relationship details for a specific CI (for expandable relationship view)
-router.get('/items/:id/relationships', async (req, res) => {
+router.get('/items/:id/relationships', readLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -622,7 +670,7 @@ router.get('/items/:id/relationships', async (req, res) => {
 });
 
 // Get impact analysis for a CI
-router.get('/impact/:id', async (req, res) => {
+router.get('/impact/:id', expensiveLimiter, async (req, res) => {
   try {
     await ensureInitialized();
 
@@ -667,7 +715,7 @@ router.get('/impact/:id', async (req, res) => {
 });
 
 // Get services status and environment information
-router.get('/services/status', async (req, res) => {
+router.get('/services/status', readLimiter, async (req, res) => {
   try {
     const startTime = Date.now();
 

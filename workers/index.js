@@ -124,7 +124,7 @@ async function updateProgress(jobId, stage, completed, total, message) {
   }
 }
 
-// Batch processing function for CIs
+// Batch processing function for CIs with detailed progress
 async function processCIBatch(session, cis, jobId, batchIndex, totalBatches) {
   const batchSize = cis.length;
   logger.info(`Processing CI batch ${batchIndex + 1}/${totalBatches} with ${batchSize} items`);
@@ -145,12 +145,22 @@ async function processCIBatch(session, cis, jobId, batchIndex, totalBatches) {
 
     await transaction.commit();
 
+    // Count CI types in this batch for detailed reporting
+    const typeCounts = cis.reduce((acc, ci) => {
+      acc[ci.type] = (acc[ci.type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const typeBreakdown = Object.entries(typeCounts)
+      .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+      .join(', ');
+
     await updateProgress(
       jobId,
       'configuration-items',
       (batchIndex + 1) * batchSize,
       totalBatches * batchSize,
-      `Created ${created} configuration items in batch ${batchIndex + 1}`
+      `Created ${created} CIs in batch ${batchIndex + 1}/${totalBatches} - ${typeBreakdown} → Neo4j`
     );
 
     return created;
@@ -161,7 +171,7 @@ async function processCIBatch(session, cis, jobId, batchIndex, totalBatches) {
   }
 }
 
-// Batch processing function for relationships
+// Batch processing function for relationships with detailed progress
 async function processRelationshipBatch(session, relationships, jobId, batchIndex, totalBatches) {
   const batchSize = relationships.length;
   logger.info(`Processing relationship batch ${batchIndex + 1}/${totalBatches} with ${batchSize} items`);
@@ -183,12 +193,22 @@ async function processRelationshipBatch(session, relationships, jobId, batchInde
 
     await transaction.commit();
 
+    // Count relationship types in this batch for detailed reporting
+    const relTypeCounts = relationships.reduce((acc, rel) => {
+      acc[rel.type] = (acc[rel.type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const relTypeBreakdown = Object.entries(relTypeCounts)
+      .map(([type, count]) => `${count} ${type}`)
+      .join(', ');
+
     await updateProgress(
       jobId,
       'relationships',
       (batchIndex + 1) * batchSize,
       totalBatches * batchSize,
-      `Created ${created} relationships in batch ${batchIndex + 1}`
+      `Created ${created} relationships in batch ${batchIndex + 1}/${totalBatches} - ${relTypeBreakdown} → Neo4j`
     );
 
     return created;
@@ -413,8 +433,9 @@ async function generateEnterpriseData(config) {
     applications.push(app);
     cis.push(app);
 
-    // Connect to random servers
-    const randomServers = servers.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3) + 1);
+    // Connect to multiple random servers (2-5 per app for redundancy)
+    const serverCount = Math.floor(Math.random() * 4) + 2; // 2-5 servers
+    const randomServers = servers.sort(() => 0.5 - Math.random()).slice(0, serverCount);
     randomServers.forEach(server => {
       relationships.push({
         from: app.id,
@@ -480,108 +501,182 @@ async function generateEnterpriseData(config) {
     });
   });
 
-  // Create application dependencies
+  // Create rich application dependencies with higher density
   applications.forEach((app, idx) => {
-    // Connect to databases
-    if (idx < databases.length) {
+    // Each application depends on 1-3 databases
+    const dbCount = Math.floor(Math.random() * 3) + 1; // 1-3 databases
+    const appDatabases = databases.sort(() => 0.5 - Math.random()).slice(0, Math.min(dbCount, databases.length));
+    appDatabases.forEach(db => {
       relationships.push({
         from: app.id,
-        to: databases[idx % databases.length].id,
+        to: db.id,
         type: 'DEPENDS_ON'
       });
-    }
+    });
 
-    // Create microservice dependencies
-    if (app.type === 'Microservice' && Math.random() > 0.5) {
-      const otherServices = applications.filter(a => a.type === 'APIService' || a.type === 'Microservice');
+    // Create microservice dependencies (80% probability instead of 50%)
+    if ((app.type === 'Microservice' || app.type === 'APIService') && Math.random() > 0.2) {
+      const otherServices = applications.filter(a =>
+        (a.type === 'APIService' || a.type === 'Microservice') && a.id !== app.id
+      );
       if (otherServices.length > 0) {
-        const dependency = otherServices[Math.floor(Math.random() * otherServices.length)];
-        if (dependency.id !== app.id) {
+        // Each microservice depends on 1-2 other services
+        const depCount = Math.floor(Math.random() * 2) + 1;
+        const dependencies = otherServices.sort(() => 0.5 - Math.random()).slice(0, depCount);
+        dependencies.forEach(dependency => {
           relationships.push({
             from: app.id,
             to: dependency.id,
             type: 'DEPENDS_ON'
           });
-        }
+        });
       }
+    }
+
+    // Web applications depend on API services
+    if (app.type === 'WebApplication') {
+      const apiServices = applications.filter(a => a.type === 'APIService');
+      if (apiServices.length > 0) {
+        const apiCount = Math.floor(Math.random() * 2) + 1; // 1-2 APIs
+        const usedAPIs = apiServices.sort(() => 0.5 - Math.random()).slice(0, apiCount);
+        usedAPIs.forEach(api => {
+          relationships.push({
+            from: app.id,
+            to: api.id,
+            type: 'USES'
+          });
+        });
+      }
+    }
+  });
+
+  // Add network relationships for servers (creates more graph depth)
+  const webServers = servers.filter(s => s.serverType === 'Web');
+  const appServers = servers.filter(s => s.serverType === 'App');
+
+  // Web servers connect to app servers
+  webServers.forEach(webServer => {
+    if (appServers.length > 0 && Math.random() > 0.3) {
+      const targetAppServer = appServers[Math.floor(Math.random() * appServers.length)];
+      relationships.push({
+        from: webServer.id,
+        to: targetAppServer.id,
+        type: 'CONNECTS_TO'
+      });
     }
   });
 
   return { cis, relationships };
 }
 
-// Event generation function
+// Event generation function with guaranteed CI linkage
 async function generateEvents(session, eventCount, jobId) {
   const eventTemplates = [
-    { message: 'High CPU utilization detected', severity: 'HIGH', type: 'PERFORMANCE', ciTypes: ['Server'] },
-    { message: 'Memory usage critical', severity: 'CRITICAL', type: 'PERFORMANCE', ciTypes: ['Server'] },
-    { message: 'API response time degraded', severity: 'MEDIUM', type: 'PERFORMANCE', ciTypes: ['APIService', 'WebApplication'] },
-    { message: 'Database connection pool exhausted', severity: 'CRITICAL', type: 'DATABASE', ciTypes: ['Database'] },
-    { message: 'Service unavailable', severity: 'HIGH', type: 'AVAILABILITY', ciTypes: ['WebApplication', 'APIService', 'Microservice'] },
-    { message: 'Network latency increased', severity: 'MEDIUM', type: 'NETWORK', ciTypes: ['Server', 'DataCenter'] },
-    { message: 'Disk space running low', severity: 'MEDIUM', type: 'CAPACITY', ciTypes: ['Server'] },
-    { message: 'Security alert detected', severity: 'HIGH', type: 'SECURITY', ciTypes: ['Server', 'WebApplication'] }
+    { message: 'High CPU utilization detected', severity: 'HIGH', type: 'PERFORMANCE', ciTypes: ['Server'], source: 'monitoring.cpu' },
+    { message: 'Memory usage critical', severity: 'CRITICAL', type: 'PERFORMANCE', ciTypes: ['Server'], source: 'monitoring.memory' },
+    { message: 'API response time degraded', severity: 'MEDIUM', type: 'PERFORMANCE', ciTypes: ['APIService', 'WebApplication'], source: 'application.api' },
+    { message: 'Database connection pool exhausted', severity: 'CRITICAL', type: 'DATABASE', ciTypes: ['Database'], source: 'database.connections' },
+    { message: 'Service unavailable', severity: 'HIGH', type: 'AVAILABILITY', ciTypes: ['WebApplication', 'APIService', 'Microservice'], source: 'service.health' },
+    { message: 'Network latency increased', severity: 'MEDIUM', type: 'NETWORK', ciTypes: ['Server', 'DataCenter'], source: 'network.latency' },
+    { message: 'Disk space running low', severity: 'MEDIUM', type: 'CAPACITY', ciTypes: ['Server'], source: 'storage.disk' },
+    { message: 'Security alert detected', severity: 'HIGH', type: 'SECURITY', ciTypes: ['Server', 'WebApplication'], source: 'security.ids' },
+    { message: 'Application error rate spike', severity: 'HIGH', type: 'APPLICATION', ciTypes: ['WebApplication', 'APIService', 'Microservice'], source: 'application.errors' },
+    { message: 'Database query performance degraded', severity: 'MEDIUM', type: 'DATABASE', ciTypes: ['Database'], source: 'database.performance' }
   ];
 
   const baseTime = new Date();
-  const timeRange = 24 * 60 * 60 * 1000; // 24 hours
+  const timeRange = 2 * 60 * 60 * 1000; // 2 hours for better correlation (not 24 hours)
   let eventsCreated = 0;
+  let eventsLinked = 0;
 
-  const eventBatchSize = 500;
+  const eventBatchSize = 100; // Smaller batches for better CI targeting
   for (let batch = 0; batch < Math.ceil(eventCount / eventBatchSize); batch++) {
-    const batchEvents = [];
     const batchStart = batch * eventBatchSize;
     const batchEnd = Math.min(batchStart + eventBatchSize, eventCount);
+    const currentBatchSize = batchEnd - batchStart;
 
-    for (let i = batchStart; i < batchEnd; i++) {
-      const template = eventTemplates[Math.floor(Math.random() * eventTemplates.length)];
-      const eventTime = new Date(baseTime.getTime() - Math.random() * timeRange);
+    // Process each event template type separately to ensure proper CI targeting
+    for (const template of eventTemplates) {
+      const eventsForTemplate = Math.ceil(currentBatchSize / eventTemplates.length);
+      if (eventsForTemplate === 0) continue;
 
-      const event = {
-        id: uuidv4(),
-        message: template.message,
-        severity: template.severity,
-        eventType: template.type,
-        timestamp: eventTime.toISOString(),
-        status: Math.random() > 0.3 ? 'OPEN' : Math.random() > 0.5 ? 'ACKNOWLEDGED' : 'RESOLVED',
-        correlationScore: 0.0,
-        metadata: JSON.stringify({
-          generated: true,
-          scale: 'enterprise',
-          batch: batch + 1
-        })
-      };
+      // Get target CIs for this template type
+      const ciTypeList = template.ciTypes.map(t => `'${t}'`).join(', ');
+      const ciQuery = `
+        MATCH (ci:ConfigurationItem)
+        WHERE ci.type IN [${ciTypeList}]
+        RETURN ci.id as id, ci.type as type, ci.name as name
+        ORDER BY rand()
+        LIMIT ${eventsForTemplate}
+      `;
 
-      batchEvents.push(event);
+      const ciResults = await session.run(ciQuery);
+
+      if (ciResults.records.length === 0) {
+        logger.warn(`No CIs found for types: ${template.ciTypes.join(', ')}`);
+        continue;
+      }
+
+      // Create events with guaranteed CI linkage
+      const eventsWithCIs = ciResults.records.map((record, idx) => {
+        const ciId = record.get('id');
+        const ciType = record.get('type');
+        const ciName = record.get('name');
+
+        // Create time-clustered events for correlation (within 30 min window)
+        const clusterWindow = 30 * 60 * 1000; // 30 minutes
+        const clusterBase = baseTime.getTime() - (batch * clusterWindow);
+        const eventTime = new Date(clusterBase - Math.random() * clusterWindow);
+
+        return {
+          event: {
+            id: uuidv4(),
+            message: `${template.message} on ${ciType} ${ciName}`,
+            severity: template.severity,
+            eventType: template.type,
+            source: template.source,
+            timestamp: eventTime.toISOString(),
+            status: Math.random() > 0.7 ? 'OPEN' : Math.random() > 0.5 ? 'ACKNOWLEDGED' : 'RESOLVED',
+            correlationScore: 0.0,
+            metadata: JSON.stringify({
+              generated: true,
+              scale: 'enterprise',
+              batch: batch + 1,
+              template: template.type,
+              targetCIType: ciType
+            })
+          },
+          ciId: ciId
+        };
+      });
+
+      // Bulk insert events with CI relationships
+      const insertQuery = `
+        UNWIND $eventsWithCIs AS item
+        CREATE (e:Event)
+        SET e = item.event
+        WITH e, item.ciId
+        MATCH (ci:ConfigurationItem {id: item.ciId})
+        CREATE (e)-[:AFFECTS]->(ci)
+        RETURN count(e) as created
+      `;
+
+      const result = await session.run(insertQuery, { eventsWithCIs });
+      const created = result.records[0]?.get('created')?.toNumber() || 0;
+      eventsCreated += created;
+      eventsLinked += created;
     }
-
-    // Create events and link to random CIs
-    const eventQuery = `
-      UNWIND $events AS event
-      CREATE (e:Event)
-      SET e = event
-      WITH e
-      MATCH (ci:ConfigurationItem)
-      WHERE rand() < 0.01
-      WITH e, ci
-      LIMIT 1
-      CREATE (e)-[:AFFECTS]->(ci)
-      RETURN count(e) as created
-    `;
-
-    const result = await session.run(eventQuery, { events: batchEvents });
-    const created = result.records[0]?.get('created')?.toNumber() || 0;
-    eventsCreated += created;
 
     await updateProgress(
       jobId,
       'events',
       eventsCreated,
       eventCount,
-      `Created ${created} events in batch ${batch + 1}`
+      `Created ${eventsCreated} events (${eventsLinked} linked to CIs) in batch ${batch + 1}/${Math.ceil(eventCount / eventBatchSize)}`
     );
   }
 
+  logger.info(`✅ Event generation complete: ${eventsCreated} events created, ${eventsLinked} linked to CIs (${Math.round((eventsLinked/eventsCreated)*100)}% linkage)`);
   return eventsCreated;
 }
 
