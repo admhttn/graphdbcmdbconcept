@@ -51,12 +51,30 @@ async function initializeDatabase() {
   const session = driver.session();
 
   try {
-    // Create constraints and indexes for Configuration Items
+    console.log('🔧 Initializing database schema...');
+
+    // ===== CONSTRAINTS (Unique IDs) =====
+    console.log('   Creating constraints...');
+
     await session.run(`
       CREATE CONSTRAINT ci_id_unique IF NOT EXISTS
       FOR (ci:ConfigurationItem) REQUIRE ci.id IS UNIQUE
     `);
 
+    await session.run(`
+      CREATE CONSTRAINT event_id_unique IF NOT EXISTS
+      FOR (e:Event) REQUIRE e.id IS UNIQUE
+    `);
+
+    await session.run(`
+      CREATE CONSTRAINT service_id_unique IF NOT EXISTS
+      FOR (s:Service) REQUIRE s.id IS UNIQUE
+    `);
+
+    // ===== SINGLE-PROPERTY INDEXES =====
+    console.log('   Creating single-property indexes...');
+
+    // ConfigurationItem indexes
     await session.run(`
       CREATE INDEX ci_type_index IF NOT EXISTS
       FOR (ci:ConfigurationItem) ON (ci.type)
@@ -67,12 +85,22 @@ async function initializeDatabase() {
       FOR (ci:ConfigurationItem) ON (ci.name)
     `);
 
-    // Create constraints for Events
     await session.run(`
-      CREATE CONSTRAINT event_id_unique IF NOT EXISTS
-      FOR (e:Event) REQUIRE e.id IS UNIQUE
+      CREATE INDEX ci_status_index IF NOT EXISTS
+      FOR (ci:ConfigurationItem) ON (ci.status)
     `);
 
+    await session.run(`
+      CREATE INDEX ci_criticality_index IF NOT EXISTS
+      FOR (ci:ConfigurationItem) ON (ci.criticality)
+    `);
+
+    await session.run(`
+      CREATE INDEX ci_datacenter_index IF NOT EXISTS
+      FOR (ci:ConfigurationItem) ON (ci.datacenter)
+    `);
+
+    // Event indexes
     await session.run(`
       CREATE INDEX event_timestamp_index IF NOT EXISTS
       FOR (e:Event) ON (e.timestamp)
@@ -83,15 +111,44 @@ async function initializeDatabase() {
       FOR (e:Event) ON (e.severity)
     `);
 
-    // Create constraints for Services
     await session.run(`
-      CREATE CONSTRAINT service_id_unique IF NOT EXISTS
-      FOR (s:Service) REQUIRE s.id IS UNIQUE
+      CREATE INDEX event_status_index IF NOT EXISTS
+      FOR (e:Event) ON (e.status)
     `);
 
-    console.log('Database initialized with constraints and indexes');
+    await session.run(`
+      CREATE INDEX event_affectedci_index IF NOT EXISTS
+      FOR (e:Event) ON (e.affectedCI)
+    `);
+
+    // ===== COMPOSITE INDEXES (for common query patterns) =====
+    console.log('   Creating composite indexes...');
+
+    // Type + Status (very common filter combination)
+    await session.run(`
+      CREATE INDEX ci_type_status_composite IF NOT EXISTS
+      FOR (ci:ConfigurationItem) ON (ci.type, ci.status)
+    `);
+
+    // Type + Criticality (for filtering critical components by type)
+    await session.run(`
+      CREATE INDEX ci_type_criticality_composite IF NOT EXISTS
+      FOR (ci:ConfigurationItem) ON (ci.type, ci.criticality)
+    `);
+
+    // Severity + Status (for active critical events)
+    await session.run(`
+      CREATE INDEX event_severity_status_composite IF NOT EXISTS
+      FOR (e:Event) ON (e.severity, e.status)
+    `);
+
+    console.log('✅ Database initialized with constraints and indexes');
+    console.log('   - 3 constraints created');
+    console.log('   - 9 single-property indexes created');
+    console.log('   - 3 composite indexes created');
+
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error('❌ Database initialization error:', error);
     throw error;
   } finally {
     await session.close();
