@@ -368,6 +368,7 @@ dataGenerationQueue.process('generate-enterprise-data', async (job) => {
 
   try {
     logger.info(`🔄 Starting data generation job ${jobId} with scale: ${scale}`);
+    logger.info(`   Target CIs: ${config.totalCIs.toLocaleString()}, Servers/DC: ${config.serversPerDatacenter}`);
 
     // Update progress: starting
     await updateJobProgress(jobId, {
@@ -404,8 +405,8 @@ dataGenerationQueue.process('generate-enterprise-data', async (job) => {
       totalCIs: config.totalCIs
     });
 
-    // Generate the data using the existing function
-    const result = await createDemoEnterpriseData();
+    // Generate the data using scale configuration
+    const result = await createDemoEnterpriseData(config);
 
     // Update progress: generating events
     await updateJobProgress(jobId, {

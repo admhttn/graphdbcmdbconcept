@@ -12,6 +12,7 @@ const cmdbRoutes = require('./api/cmdb');
 const eventsRoutes = require('./api/events');
 const correlationRoutes = require('./api/correlation');
 const demoRoutes = require('./api/demo');
+const weightedRelationshipsRoutes = require('./api/weightedRelationships');
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/cmdb', cmdbRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/correlation', correlationRoutes);
 app.use('/api/demo', demoRoutes);
+app.use('/api/relationships', weightedRelationshipsRoutes);
 
 // Job Management API Routes
 app.post('/api/jobs', jobLimiter, async (req, res) => {
