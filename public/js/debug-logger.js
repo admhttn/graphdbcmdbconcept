@@ -211,10 +211,18 @@ class DebugLogger {
                 let responseData = null;
 
                 try {
+                    // Try to read as JSON first
                     responseData = await responseClone.json();
                 } catch (e) {
-                    // Response might not be JSON
-                    responseData = await responseClone.text();
+                    // If JSON parsing fails, try reading as text
+                    // Need to clone again since the first clone was consumed by json() attempt
+                    try {
+                        const textClone = response.clone();
+                        responseData = await textClone.text();
+                    } catch (textError) {
+                        // If both fail, just log the response status
+                        responseData = { status: response.status, statusText: response.statusText };
+                    }
                 }
 
                 this.logAPI(method, url, response.status, timing, responseData);
