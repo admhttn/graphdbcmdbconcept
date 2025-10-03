@@ -1,10 +1,16 @@
 const { runWriteQuery } = require('../services/neo4j');
+const { createNodesBulk, createRelationshipsBulk, checkAPOCAvailability } = require('../services/apocOperations');
 const crypto = require('crypto');
 const uuidv4 = () => crypto.randomUUID();
 
 /**
- * Scalable enterprise data generator
+ * Scalable enterprise data generator with APOC optimization
  * Accepts configuration to generate small (1K), medium (10K), large (100K), or enterprise (1M) scale data
+ *
+ * Performance Modes:
+ * - Small (1K): Standard UNWIND batching
+ * - Medium (10K): UNWIND with larger batches
+ * - Large (100K+): APOC parallel processing (if available)
  */
 async function createDemoEnterpriseData(config = {}) {
     // Default to small demo scale if no config provided
@@ -16,15 +22,25 @@ async function createDemoEnterpriseData(config = {}) {
         applicationsCount = 200,
         databasesCount = 20,
         eventCount = 500,
-        clearExisting = false
+        clearExisting = false,
+        useAPOC = true  // Enable APOC for large datasets
     } = config;
 
-    console.log(`🏢 Generating enterprise CMDB data (${totalCIs.toLocaleString()} CIs)...`);
+    const startTime = Date.now();
+
+    console.log(`🏢 Generating enterprise CMDB data (target: ${totalCIs.toLocaleString()} CIs)...`);
     console.log(`   📍 Regions: ${regionsCount}`);
     console.log(`   🏢 Datacenters: ${regionsCount * datacentersPerRegion}`);
     console.log(`   🖥️  Servers: ${regionsCount * datacentersPerRegion * serversPerDatacenter}`);
     console.log(`   📱 Applications: ${applicationsCount}`);
     console.log(`   🗄️  Databases: ${databasesCount}`);
+    console.log(`   ⚡ Events: ${eventCount}`);
+
+    // Check APOC availability for large datasets
+    const hasAPOC = useAPOC && totalCIs >= 10000 ? await checkAPOCAvailability() : false;
+    if (totalCIs >= 10000 && hasAPOC) {
+        console.log('   🚀 Using APOC parallel processing for optimal performance');
+    }
 
     try {
         let totalCreated = 0;
@@ -88,58 +104,58 @@ async function createDemoEnterpriseData(config = {}) {
             CREATE (dc)-[:LOCATED_IN]->(r)
         `);
 
-        // Step 3: Create servers in batches
+        // Step 3: Create all servers at once (optimized)
         console.log(`🖥️  Creating servers (${serversPerDatacenter} per datacenter)...`);
-        const batchSize = 1000; // Create servers in batches of 1000
         const serverTypes = ['Web', 'App', 'DB', 'Cache', 'Compute', 'Storage'];
+        const allServers = [];
 
+        // Pre-generate all server data
         for (const dc of datacenters) {
-            let serversCreated = 0;
-
-            while (serversCreated < serversPerDatacenter) {
-                const currentBatchSize = Math.min(batchSize, serversPerDatacenter - serversCreated);
-                const servers = [];
-
-                for (let i = 1; i <= currentBatchSize; i++) {
-                    const serverNum = serversCreated + i;
-                    servers.push({
-                        id: `srv-${dc.id}-${serverNum.toString().padStart(4, '0')}`,
-                        name: `Server ${serverNum} - ${dc.name}`,
-                        type: 'Server',
-                        datacenter: dc.id,
-                        serverType: serverTypes[serverNum % serverTypes.length],
-                        cpu: `${Math.floor(Math.random() * 48) + 8} cores`,
-                        memory: `${Math.pow(2, Math.floor(Math.random() * 5) + 4)}GB`,
-                        criticality: serverNum <= 5 ? 'CRITICAL' : serverNum <= 20 ? 'HIGH' : 'MEDIUM',
-                        status: Math.random() > 0.05 ? 'OPERATIONAL' : 'MAINTENANCE'
-                    });
-                }
-
-                // Batch create servers
-                await runWriteQuery(`
-                    UNWIND $servers AS srv
-                    CREATE (s:ConfigurationItem) SET s = srv
-                `, { servers });
-
-                // Batch create hosting relationships
-                await runWriteQuery(`
-                    MATCH (s:ConfigurationItem {type: 'Server'})
-                    WHERE s.datacenter = $dcId
-                    MATCH (dc:ConfigurationItem {id: $dcId})
-                    MERGE (s)-[:HOSTED_IN]->(dc)
-                `, { dcId: dc.id });
-
-                serversCreated += currentBatchSize;
-                totalCreated += currentBatchSize;
-
-                // Log progress for large datasets
-                if (serversPerDatacenter > 100) {
-                    console.log(`   ... created ${serversCreated}/${serversPerDatacenter} servers for ${dc.name}`);
-                }
+            for (let i = 1; i <= serversPerDatacenter; i++) {
+                allServers.push({
+                    id: `srv-${dc.id}-${i.toString().padStart(4, '0')}`,
+                    name: `Server ${i} - ${dc.name}`,
+                    type: 'Server',
+                    datacenter: dc.id,
+                    serverType: serverTypes[i % serverTypes.length],
+                    cpu: `${Math.floor(Math.random() * 48) + 8} cores`,
+                    memory: `${Math.pow(2, Math.floor(Math.random() * 5) + 4)}GB`,
+                    criticality: i <= 5 ? 'CRITICAL' : i <= 20 ? 'HIGH' : 'MEDIUM',
+                    status: Math.random() > 0.05 ? 'OPERATIONAL' : 'MAINTENANCE'
+                });
             }
         }
 
-        // Step 4: Create applications in batches
+        // Use APOC for large server counts, standard UNWIND for small
+        if (hasAPOC && allServers.length > 5000) {
+            const stats = await createNodesBulk(allServers, 10000);
+            totalCreated += stats.nodesCreated;
+        } else {
+            // Fallback to batched UNWIND
+            const batchSize = 1000;
+            for (let i = 0; i < allServers.length; i += batchSize) {
+                const batch = allServers.slice(i, i + batchSize);
+                await runWriteQuery(`
+                    UNWIND $servers AS srv
+                    CREATE (s:ConfigurationItem) SET s = srv
+                `, { servers: batch });
+
+                if (allServers.length > 1000 && i % 5000 === 0) {
+                    console.log(`   ... created ${Math.min(i + batchSize, allServers.length)}/${allServers.length} servers`);
+                }
+            }
+            totalCreated += allServers.length;
+        }
+
+        // Create all server-datacenter relationships at once
+        console.log('   Creating server-datacenter relationships...');
+        await runWriteQuery(`
+            MATCH (s:ConfigurationItem {type: 'Server'})
+            MATCH (dc:ConfigurationItem {type: 'DataCenter', id: s.datacenter})
+            MERGE (s)-[:HOSTED_IN]->(dc)
+        `);
+
+        // Step 4: Create applications (optimized)
         console.log(`📱 Creating applications (${applicationsCount})...`);
         const appTypes = ['WebApplication', 'APIService', 'Microservice', 'BackgroundService', 'MobileBackend'];
         const applications = [];
@@ -157,22 +173,24 @@ async function createDemoEnterpriseData(config = {}) {
             });
         }
 
-        // Batch create applications
-        const appBatchSize = 500;
-        for (let i = 0; i < applications.length; i += appBatchSize) {
-            const batch = applications.slice(i, i + appBatchSize);
-            await runWriteQuery(`
-                UNWIND $apps AS app
-                CREATE (a:ConfigurationItem) SET a = app
-            `, { apps: batch });
-
-            if (applicationsCount > 500) {
-                console.log(`   ... created ${Math.min(i + appBatchSize, applicationsCount)}/${applicationsCount} applications`);
+        // Use APOC for large application counts
+        if (hasAPOC && applicationsCount > 5000) {
+            const stats = await createNodesBulk(applications, 10000);
+            totalCreated += stats.nodesCreated;
+        } else {
+            // Batched UNWIND for standard sizes
+            const appBatchSize = 1000;
+            for (let i = 0; i < applications.length; i += appBatchSize) {
+                const batch = applications.slice(i, i + appBatchSize);
+                await runWriteQuery(`
+                    UNWIND $apps AS app
+                    CREATE (a:ConfigurationItem) SET a = app
+                `, { apps: batch });
             }
+            totalCreated += applicationsCount;
         }
-        totalCreated += applicationsCount;
 
-        // Step 5: Create databases in batches
+        // Step 5: Create databases (optimized)
         console.log(`🗄️  Creating databases (${databasesCount})...`);
         const dbTypes = ['PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Cassandra', 'Elasticsearch'];
         const databases = [];
@@ -189,11 +207,17 @@ async function createDemoEnterpriseData(config = {}) {
             });
         }
 
-        await runWriteQuery(`
-            UNWIND $databases AS db
-            CREATE (d:ConfigurationItem) SET d = db
-        `, { databases });
-        totalCreated += databasesCount;
+        // Batch create databases
+        if (hasAPOC && databasesCount > 5000) {
+            const stats = await createNodesBulk(databases, 10000);
+            totalCreated += stats.nodesCreated;
+        } else {
+            await runWriteQuery(`
+                UNWIND $databases AS db
+                CREATE (d:ConfigurationItem) SET d = db
+            `, { databases });
+            totalCreated += databasesCount;
+        }
 
         // Step 6: Create business services
         console.log('💼 Creating business services...');
@@ -351,12 +375,22 @@ async function createDemoEnterpriseData(config = {}) {
             `, { events: batch });
         }
 
+        const totalTime = Date.now() - startTime;
+        const timeInSeconds = (totalTime / 1000).toFixed(2);
+        const timeInMinutes = (totalTime / 60000).toFixed(2);
+
         console.log(`✅ Enterprise CMDB generation completed!`);
         console.log(`   📊 Total CIs: ${totalCreated.toLocaleString()}`);
         console.log(`   🔗 Total Relationships: ${totalRelationships.toLocaleString()}`);
         console.log(`   🏢 Datacenters: ${datacenters.length}`);
         console.log(`   💼 Business Services: ${businessServices.length}`);
         console.log(`   ⚡ Events: ${events.length}`);
+        console.log(`   ⏱️  Generation Time: ${timeInMinutes} minutes (${timeInSeconds} seconds)`);
+        console.log(`   📈 Performance: ${Math.round(totalCreated / (totalTime / 1000))} CIs/second`);
+
+        if (hasAPOC) {
+            console.log(`   🚀 APOC parallel processing was used`);
+        }
 
         return {
             totalCIs: totalCreated,
@@ -364,6 +398,11 @@ async function createDemoEnterpriseData(config = {}) {
             datacenters: datacenters.length,
             businessServices: businessServices.length,
             events: events.length,
+            generationTimeMs: totalTime,
+            generationTimeSeconds: parseFloat(timeInSeconds),
+            generationTimeMinutes: parseFloat(timeInMinutes),
+            performanceCIsPerSecond: Math.round(totalCreated / (totalTime / 1000)),
+            usedAPOC: hasAPOC,
             message: 'Enterprise CMDB data generated successfully'
         };
 
