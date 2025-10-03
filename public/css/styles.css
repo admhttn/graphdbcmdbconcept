@@ -3131,6 +3131,46 @@ header p {
     font-style: italic;
 }
 
+/* Fullscreen Topology Mode */
+.topology-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 10001 !important;
+    background: white !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.topology-fullscreen .section-header {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    margin: -20px -20px 20px -20px;
+    border-bottom: 2px solid #e1e5e9;
+    flex-shrink: 0;
+}
+
+.topology-fullscreen .detail-topology {
+    flex: 1 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: stretch !important;
+}
+
+.topology-fullscreen .detail-topology svg {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 /* CI Type/Status in Modal Context */
 .detail-section .ci-type,
 .detail-section .ci-status {
