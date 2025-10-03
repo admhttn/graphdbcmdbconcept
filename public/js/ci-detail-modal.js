@@ -77,6 +77,14 @@ class CIDetailModal {
             });
         }
 
+        // Fullscreen topology button
+        const fullscreenTopologyBtn = document.getElementById('fullscreen-topology');
+        if (fullscreenTopologyBtn) {
+            fullscreenTopologyBtn.addEventListener('click', () => {
+                this.toggleFullscreenTopology();
+            });
+        }
+
         // Topology depth selector
         const topologyDepth = document.getElementById('topology-depth');
         if (topologyDepth) {
@@ -323,9 +331,57 @@ class CIDetailModal {
         this.createTopologyVisualization(topologyContainer, topologyData, centerNodeId);
     }
 
+    toggleFullscreenTopology() {
+        const topologySection = document.querySelector('.detail-section:has(#detail-topology)');
+
+        if (!topologySection) {
+            console.error('Topology section not found');
+            return;
+        }
+
+        const isFullscreen = topologySection.classList.contains('topology-fullscreen');
+
+        if (isFullscreen) {
+            // Exit fullscreen
+            topologySection.classList.remove('topology-fullscreen');
+            document.body.style.overflow = 'hidden'; // Keep modal scroll locked
+
+            const fullscreenBtn = document.getElementById('fullscreen-topology');
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Fullscreen';
+            }
+        } else {
+            // Enter fullscreen
+            topologySection.classList.add('topology-fullscreen');
+            document.body.style.overflow = 'hidden';
+
+            const fullscreenBtn = document.getElementById('fullscreen-topology');
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i> Exit Fullscreen';
+            }
+        }
+
+        // Reload topology to fit new container size
+        if (this.currentCIId) {
+            setTimeout(() => {
+                this.loadTopology(this.currentCIId);
+            }, 100); // Small delay for CSS transition
+        }
+
+        if (window.logInfo) {
+            window.logInfo(isFullscreen ? 'Exited fullscreen topology' : 'Entered fullscreen topology');
+        }
+    }
+
     createTopologyVisualization(container, data, centerNodeId) {
+        // Check if parent section is in fullscreen mode
+        const topologySection = document.querySelector('.detail-section:has(#detail-topology)');
+        const isFullscreen = topologySection && topologySection.classList.contains('topology-fullscreen');
+
         const width = container.clientWidth || 600;
-        const height = 400;
+        const height = isFullscreen
+            ? window.innerHeight - 200  // Leave room for header and controls
+            : 400;
 
         // Create SVG
         const svg = d3.select(container)
